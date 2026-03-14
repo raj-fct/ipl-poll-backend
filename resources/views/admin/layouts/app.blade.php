@@ -83,6 +83,8 @@
         .badge-won { background: #198754; color: #fff; }
         .badge-lost { background: #dc3545; color: #fff; }
         .badge-refunded { background: #6c757d; color: #fff; }
+        .pagination { margin-bottom: 0; font-size: 0.875rem; }
+        .pagination .page-link { padding: 0.35rem 0.65rem; }
         @media (max-width: 768px) {
             .sidebar { transform: translateX(-100%); }
             .sidebar.show { transform: translateX(0); }
