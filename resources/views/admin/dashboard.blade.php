@@ -3,6 +3,21 @@
 @section('title', 'Dashboard')
 
 @section('content')
+{{-- Season Filter --}}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Dashboard</h5>
+    <form method="GET" class="d-flex align-items-center gap-2">
+        <select name="season" class="form-select form-select-sm" style="width:180px" onchange="this.form.submit()">
+            <option value="">All Seasons</option>
+            @foreach($seasons as $season)
+                <option value="{{ $season->id }}" {{ $selectedSeason && $selectedSeason->id == $season->id ? 'selected' : '' }}>
+                    {{ $season->name }}
+                </option>
+            @endforeach
+        </select>
+    </form>
+</div>
+
 {{-- Stats Row --}}
 <div class="row g-3 mb-4">
     <div class="col-sm-6 col-xl-3">

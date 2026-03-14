@@ -7,6 +7,7 @@ use App\Http\Controllers\Web\UserWebController;
 use App\Http\Controllers\Web\MatchWebController;
 use App\Http\Controllers\Web\PollWebController;
 use App\Http\Controllers\Web\SettingWebController;
+use App\Http\Controllers\Web\TeamWebController;
 use App\Http\Controllers\Web\TransactionWebController;
 
 // Admin Login
@@ -29,6 +30,13 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/users/{user}/reset-password', [UserWebController::class, 'resetPassword'])->name('users.reset-password');
     Route::post('/users/{user}/adjust-coins', [UserWebController::class, 'adjustCoins'])->name('users.adjust-coins');
     Route::post('/users/award-bonus', [UserWebController::class, 'awardBonusToAll'])->name('users.award-bonus');
+
+    // Teams
+    Route::get('/teams', [TeamWebController::class, 'index'])->name('teams.index');
+    Route::get('/teams/create', [TeamWebController::class, 'create'])->name('teams.create');
+    Route::post('/teams', [TeamWebController::class, 'store'])->name('teams.store');
+    Route::get('/teams/{team}/edit', [TeamWebController::class, 'edit'])->name('teams.edit');
+    Route::put('/teams/{team}', [TeamWebController::class, 'update'])->name('teams.update');
 
     // Matches
     Route::get('/matches', [MatchWebController::class, 'index'])->name('matches.index');

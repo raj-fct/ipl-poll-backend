@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Season;
+use App\Models\Team;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -14,27 +16,8 @@ class CricketApiService
      */
     protected string $baseUrl = 'https://site.api.espn.com/apis/site/v2/sports/cricket/8048';
 
-    // Full team names for each short code
-    protected array $teamFullNames = [
-        'CSK'  => 'Chennai Super Kings',
-        'MI'   => 'Mumbai Indians',
-        'RCB'  => 'Royal Challengers Bengaluru',
-        'KKR'  => 'Kolkata Knight Riders',
-        'DC'   => 'Delhi Capitals',
-        'PBKS' => 'Punjab Kings',
-        'RR'   => 'Rajasthan Royals',
-        'SRH'  => 'Sunrisers Hyderabad',
-        'GT'   => 'Gujarat Titans',
-        'LSG'  => 'Lucknow Super Giants',
-    ];
-
     /**
      * Fetch all IPL matches for a given season year.
-     *
-     * Returns parsed array of matches with:
-     *   espn_id, match_number, team_a, team_b, team_a_short, team_b_short,
-     *   team_a_logo, team_b_logo, match_date, venue, status, winning_team,
-     *   score_a, score_b, summary
      */
     public function fetchMatches(int $seasonYear): array
     {
@@ -65,7 +48,6 @@ class CricketApiService
      */
     public function fetchMatch(string $espnId): ?array
     {
-        // Use the summary endpoint for detailed match info
         $response = $this->request("summary", ['event' => $espnId]);
 
         if (!$response) {
@@ -77,8 +59,48 @@ class CricketApiService
             return null;
         }
 
-        // Build a compatible event structure
         return $this->parseSummaryEvent($response, $espnId);
+    }
+
+    /**
+     * Find or create a Team record from ESPN data.
+     */
+    public function findOrCreateTeam(array $espnTeam): Team
+    {
+        $team = Team::where('espn_id', (string) $espnTeam['id'])->first();
+
+        if ($team) {
+            // Update logo and color if they've changed
+            $team->update(array_filter([
+                'name'       => $espnTeam['displayName'] ?? $espnTeam['name'] ?? $team->name,
+                'short_name' => $espnTeam['abbreviation'] ?? $team->short_name,
+                'logo'       => $espnTeam['logo'] ?? $team->logo,
+                'color'      => $espnTeam['color'] ?? $team->color,
+            ]));
+            return $team;
+        }
+
+        return Team::create([
+            'espn_id'    => (string) $espnTeam['id'],
+            'name'       => $espnTeam['displayName'] ?? $espnTeam['name'] ?? $espnTeam['abbreviation'],
+            'short_name' => $espnTeam['abbreviation'] ?? '',
+            'logo'       => $espnTeam['logo'] ?? null,
+            'color'      => $espnTeam['color'] ?? null,
+        ]);
+    }
+
+    /**
+     * Find or create a Season record.
+     */
+    public function findOrCreateSeason(int $year): Season
+    {
+        return Season::firstOrCreate(
+            ['year' => $year],
+            [
+                'name'           => "IPL {$year}",
+                'espn_league_id' => '8048',
+            ]
+        );
     }
 
     /**
@@ -105,7 +127,7 @@ class CricketApiService
 
         // Determine status
         $statusType = $event['status']['type'] ?? [];
-        $state = $statusType['state'] ?? 'pre';  // pre, in, post
+        $state = $statusType['state'] ?? 'pre';
         $status = match ($state) {
             'post' => 'completed',
             'in'   => 'live',
@@ -133,7 +155,7 @@ class CricketApiService
         // Venue
         $venue = $competition['venue']['fullName'] ?? null;
 
-        // Summary (e.g., "RCB won by 7 wkts (22b rem)")
+        // Summary
         $summary = $event['status']['summary'] ?? $statusType['detail'] ?? null;
 
         return [
@@ -148,8 +170,10 @@ class CricketApiService
             'team_b_logo'    => $team2['logo'] ?? null,
             'team_a_color'   => $team1['color'] ?? null,
             'team_b_color'   => $team2['color'] ?? null,
-            'team_a_id'      => $team1['id'] ?? null,
-            'team_b_id'      => $team2['id'] ?? null,
+            'team_a_espn_id' => (string) ($team1['id'] ?? ''),
+            'team_b_espn_id' => (string) ($team2['id'] ?? ''),
+            'team_a_raw'     => $team1,
+            'team_b_raw'     => $team2,
             'match_date'     => $matchDate,
             'venue'          => $venue,
             'status'         => $status,
@@ -203,29 +227,25 @@ class CricketApiService
         }
 
         return [
-            'espn_id'      => $espnId,
-            'match_number' => $matchNumber,
-            'description'  => $desc,
-            'team_a'       => $team1['displayName'] ?? $team1['name'] ?? '',
-            'team_b'       => $team2['displayName'] ?? $team2['name'] ?? '',
-            'team_a_short' => $team1['abbreviation'] ?? '',
-            'team_b_short' => $team2['abbreviation'] ?? '',
-            'team_a_logo'  => $team1['logo'] ?? null,
-            'team_b_logo'  => $team2['logo'] ?? null,
-            'status'       => $status,
-            'winning_team' => $winningTeam,
-            'score_a'      => $comp1['score'] ?? null,
-            'score_b'      => $comp2['score'] ?? null,
-            'summary'      => $statusType['shortDetail'] ?? null,
+            'espn_id'        => $espnId,
+            'match_number'   => $matchNumber,
+            'description'    => $desc,
+            'team_a'         => $team1['displayName'] ?? $team1['name'] ?? '',
+            'team_b'         => $team2['displayName'] ?? $team2['name'] ?? '',
+            'team_a_short'   => $team1['abbreviation'] ?? '',
+            'team_b_short'   => $team2['abbreviation'] ?? '',
+            'team_a_logo'    => $team1['logo'] ?? null,
+            'team_b_logo'    => $team2['logo'] ?? null,
+            'team_a_espn_id' => (string) ($team1['id'] ?? ''),
+            'team_b_espn_id' => (string) ($team2['id'] ?? ''),
+            'team_a_raw'     => $team1,
+            'team_b_raw'     => $team2,
+            'status'         => $status,
+            'winning_team'   => $winningTeam,
+            'score_a'        => $comp1['score'] ?? null,
+            'score_b'        => $comp2['score'] ?? null,
+            'summary'        => $statusType['shortDetail'] ?? null,
         ];
-    }
-
-    /**
-     * Get full team name from short code.
-     */
-    public function getTeamFullName(string $shortCode): string
-    {
-        return $this->teamFullNames[strtoupper($shortCode)] ?? $shortCode;
     }
 
     /**

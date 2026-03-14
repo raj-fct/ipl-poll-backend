@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use App\Jobs\ProcessMatchResult;
 use App\Models\IplMatch;
-use App\Models\Setting;
+use App\Models\Season;
 use App\Services\CricketApiService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +13,8 @@ class VerifyMatchResults extends Command
 {
     protected $signature = 'ipl:verify-results
                             {--dry-run : Preview results without updating}
-                            {--all : Check all matches, not just today\'s}';
+                            {--all : Check all matches, not just today\'s}
+                            {--season= : Season year to check (defaults to active season)}';
 
     protected $description = 'Check ESPNcricinfo for completed match results and auto-settle coins';
 
@@ -21,9 +22,13 @@ class VerifyMatchResults extends Command
     {
         $this->info('Fetching latest match data from ESPNcricinfo...');
 
-        $seasonLabel = Setting::get('season', 'IPL 2026');
-        preg_match('/(\d{4})/', $seasonLabel, $m);
-        $year = (int) ($m[1] ?? now()->year);
+        // Determine season year
+        $year = $this->option('season');
+        if (!$year) {
+            $activeSeason = Season::active();
+            $year = $activeSeason ? $activeSeason->year : now()->year;
+        }
+        $year = (int) $year;
 
         // Fetch all matches from ESPN
         $espnMatches = $api->fetchMatches($year);
@@ -33,11 +38,18 @@ class VerifyMatchResults extends Command
             return self::FAILURE;
         }
 
-        $this->info(count($espnMatches) . ' matches fetched from ESPN.');
+        $this->info(count($espnMatches) . " matches fetched from ESPN for IPL {$year}.");
         $this->newLine();
 
-        // Get our pending matches
+        // Get our pending matches for this season
         $query = IplMatch::whereIn('status', ['upcoming', 'live']);
+
+        // Filter by season if we have one
+        $season = Season::where('year', $year)->first();
+        if ($season) {
+            $query->where('season_id', $season->id);
+        }
+
         if (!$this->option('all')) {
             $query->where('match_date', '<=', now()->addHours(6));
         }
@@ -108,9 +120,7 @@ class VerifyMatchResults extends Command
             if ($espn['status'] === 'completed' && $espn['winning_team']) {
                 $winner = $espn['winning_team'];
 
-                // Verify winner is valid for this match
                 if (!in_array($winner, $match->getTeams())) {
-                    // Try swapped order
                     $this->warn("  Winner '{$winner}' not in [{$match->team_a_short}, {$match->team_b_short}]. Skipping.");
                     $noResult++;
                     continue;
@@ -127,7 +137,7 @@ class VerifyMatchResults extends Command
                 continue;
             }
 
-            // Completed but no winner (abandoned, no result, tied)
+            // Completed but no winner
             if ($espn['status'] === 'completed' && !$espn['winning_team']) {
                 $this->warn("  Completed but NO winner (no result / abandoned). Needs manual review.");
                 $noResult++;

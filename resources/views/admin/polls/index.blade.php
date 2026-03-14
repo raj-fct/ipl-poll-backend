@@ -11,6 +11,14 @@
 <div class="card mb-3">
     <div class="card-body py-2">
         <form method="GET" class="d-flex gap-2 align-items-center flex-wrap">
+            <select name="season" class="form-select form-select-sm" style="max-width:180px">
+                <option value="">All Seasons</option>
+                @foreach($seasons as $season)
+                    <option value="{{ $season->id }}" {{ $selectedSeasonId == $season->id ? 'selected' : '' }}>
+                        {{ $season->name }}
+                    </option>
+                @endforeach
+            </select>
             <select name="status" class="form-select form-select-sm" style="max-width:150px">
                 <option value="">All Status</option>
                 <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>Pending</option>
@@ -27,7 +35,7 @@
                 <span class="badge bg-info">User #{{ request('user_id') }}</span>
             @endif
             <button class="btn btn-sm btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
-            @if(request()->hasAny(['status', 'match_id', 'user_id']))
+            @if(request()->hasAny(['status', 'match_id', 'user_id', 'season']))
                 <a href="{{ route('admin.polls.index') }}" class="btn btn-sm btn-outline-secondary">Clear</a>
             @endif
         </form>

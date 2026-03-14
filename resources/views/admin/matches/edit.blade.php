@@ -14,50 +14,62 @@
                     @csrf
                     @method('PUT')
                     <div class="row g-3">
+                        {{-- Teams --}}
                         <div class="col-md-6">
-                            <h6 class="text-muted">Team A</h6>
-                            <div class="mb-3">
-                                <label class="form-label">Full Name</label>
-                                <input type="text" name="team_a" class="form-control" value="{{ old('team_a', $match->team_a) }}" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Short Code</label>
-                                <input type="text" name="team_a_short" class="form-control" value="{{ old('team_a_short', $match->team_a_short) }}" maxlength="5" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Logo URL</label>
-                                <input type="url" name="team_a_logo" class="form-control" value="{{ old('team_a_logo', $match->team_a_logo) }}">
-                            </div>
+                            <label class="form-label">Team A</label>
+                            <select name="team_a_id" class="form-select @error('team_a_id') is-invalid @enderror" required>
+                                <option value="">Select Team A</option>
+                                @foreach($teams as $team)
+                                    <option value="{{ $team->id }}" {{ old('team_a_id', $match->team_a_id) == $team->id ? 'selected' : '' }}>
+                                        {{ $team->short_name }} - {{ $team->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('team_a_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
-                            <h6 class="text-muted">Team B</h6>
-                            <div class="mb-3">
-                                <label class="form-label">Full Name</label>
-                                <input type="text" name="team_b" class="form-control" value="{{ old('team_b', $match->team_b) }}" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Short Code</label>
-                                <input type="text" name="team_b_short" class="form-control" value="{{ old('team_b_short', $match->team_b_short) }}" maxlength="5" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Logo URL</label>
-                                <input type="url" name="team_b_logo" class="form-control" value="{{ old('team_b_logo', $match->team_b_logo) }}">
-                            </div>
+                            <label class="form-label">Team B</label>
+                            <select name="team_b_id" class="form-select @error('team_b_id') is-invalid @enderror" required>
+                                <option value="">Select Team B</option>
+                                @foreach($teams as $team)
+                                    <option value="{{ $team->id }}" {{ old('team_b_id', $match->team_b_id) == $team->id ? 'selected' : '' }}>
+                                        {{ $team->short_name }} - {{ $team->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('team_b_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
+
                         <hr>
+
+                        <div class="col-md-4">
+                            <label class="form-label">Season</label>
+                            <select name="season_id" class="form-select @error('season_id') is-invalid @enderror" required>
+                                @foreach($seasons as $season)
+                                    <option value="{{ $season->id }}" {{ old('season_id', $match->season_id) == $season->id ? 'selected' : '' }}>
+                                        {{ $season->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('season_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
                         <div class="col-md-4">
                             <label class="form-label">Match Date & Time</label>
                             <input type="datetime-local" name="match_date" class="form-control"
                                    value="{{ old('match_date', $match->match_date->format('Y-m-d\TH:i')) }}" required>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Venue</label>
-                            <input type="text" name="venue" class="form-control" value="{{ old('venue', $match->venue) }}">
-                        </div>
-                        <div class="col-md-4">
                             <label class="form-label">Win Multiplier</label>
                             <input type="number" name="win_multiplier" class="form-control"
                                    value="{{ old('win_multiplier', $match->win_multiplier) }}" step="0.01" min="1.0" max="10.0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Venue</label>
+                            <input type="text" name="venue" class="form-control" value="{{ old('venue', $match->venue) }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">ESPN ID</label>
+                            <input type="text" class="form-control" value="{{ $match->espn_id }}" disabled>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Notes</label>

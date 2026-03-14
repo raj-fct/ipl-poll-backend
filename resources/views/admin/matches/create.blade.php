@@ -13,46 +13,30 @@
                 <form method="POST" action="{{ route('admin.matches.store') }}">
                     @csrf
                     <div class="row g-3">
-                        {{-- Team A --}}
+                        {{-- Teams --}}
                         <div class="col-md-6">
-                            <h6 class="text-muted">Team A</h6>
-                            <div class="mb-3">
-                                <label class="form-label">Full Name</label>
-                                <input type="text" name="team_a" class="form-control @error('team_a') is-invalid @enderror"
-                                       value="{{ old('team_a') }}" placeholder="e.g., Mumbai Indians" required>
-                                @error('team_a')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Short Code</label>
-                                <input type="text" name="team_a_short" class="form-control @error('team_a_short') is-invalid @enderror"
-                                       value="{{ old('team_a_short') }}" placeholder="MI" maxlength="5" required>
-                                @error('team_a_short')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Logo URL <small class="text-muted">(optional)</small></label>
-                                <input type="url" name="team_a_logo" class="form-control" value="{{ old('team_a_logo') }}">
-                            </div>
+                            <label class="form-label">Team A</label>
+                            <select name="team_a_id" class="form-select @error('team_a_id') is-invalid @enderror" required>
+                                <option value="">Select Team A</option>
+                                @foreach($teams as $team)
+                                    <option value="{{ $team->id }}" {{ old('team_a_id') == $team->id ? 'selected' : '' }}>
+                                        {{ $team->short_name }} - {{ $team->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('team_a_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
-
-                        {{-- Team B --}}
                         <div class="col-md-6">
-                            <h6 class="text-muted">Team B</h6>
-                            <div class="mb-3">
-                                <label class="form-label">Full Name</label>
-                                <input type="text" name="team_b" class="form-control @error('team_b') is-invalid @enderror"
-                                       value="{{ old('team_b') }}" placeholder="e.g., Chennai Super Kings" required>
-                                @error('team_b')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Short Code</label>
-                                <input type="text" name="team_b_short" class="form-control @error('team_b_short') is-invalid @enderror"
-                                       value="{{ old('team_b_short') }}" placeholder="CSK" maxlength="5" required>
-                                @error('team_b_short')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Logo URL <small class="text-muted">(optional)</small></label>
-                                <input type="url" name="team_b_logo" class="form-control" value="{{ old('team_b_logo') }}">
-                            </div>
+                            <label class="form-label">Team B</label>
+                            <select name="team_b_id" class="form-select @error('team_b_id') is-invalid @enderror" required>
+                                <option value="">Select Team B</option>
+                                @foreach($teams as $team)
+                                    <option value="{{ $team->id }}" {{ old('team_b_id') == $team->id ? 'selected' : '' }}>
+                                        {{ $team->short_name }} - {{ $team->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('team_b_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
                         <hr>
@@ -72,7 +56,15 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Season</label>
-                            <input type="text" name="season" class="form-control" value="{{ old('season', 'IPL 2025') }}" required>
+                            <select name="season_id" class="form-select @error('season_id') is-invalid @enderror" required>
+                                <option value="">Select Season</option>
+                                @foreach($seasons as $season)
+                                    <option value="{{ $season->id }}" {{ old('season_id') == $season->id ? 'selected' : '' }}>
+                                        {{ $season->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('season_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Venue</label>
