@@ -9,7 +9,15 @@
         <div class="card mb-3">
             <div class="card-body text-center">
                 <span class="badge badge-{{ $match->status }} mb-2" style="font-size:0.85rem">{{ ucfirst($match->status) }}</span>
-                <h4 class="mb-1">{{ $match->team_a_short }} vs {{ $match->team_b_short }}</h4>
+                <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
+                    @if($match->team_a_logo)
+                        <img src="{{ $match->team_a_logo }}" alt="{{ $match->team_a_short }}" style="width:40px;height:40px">
+                    @endif
+                    <h4 class="mb-0">{{ $match->team_a_short }} vs {{ $match->team_b_short }}</h4>
+                    @if($match->team_b_logo)
+                        <img src="{{ $match->team_b_logo }}" alt="{{ $match->team_b_short }}" style="width:40px;height:40px">
+                    @endif
+                </div>
                 <p class="text-muted mb-1">{{ $match->team_a }} vs {{ $match->team_b }}</p>
                 <small class="text-muted">
                     <i class="bi bi-calendar"></i> {{ $match->match_date->format('d M Y, h:i A') }}
@@ -32,8 +40,14 @@
                 </div>
                 <div class="list-group-item d-flex justify-content-between">
                     <span class="text-muted">Season</span>
-                    <span>{{ $match->season }}</span>
+                    <span>{{ $match->season }}{{ $match->seasonRecord ? '' : '' }}</span>
                 </div>
+                @if($match->espn_id)
+                <div class="list-group-item d-flex justify-content-between">
+                    <span class="text-muted">ESPN ID</span>
+                    <span class="font-monospace small">{{ $match->espn_id }}</span>
+                </div>
+                @endif
                 <div class="list-group-item d-flex justify-content-between">
                     <span class="text-muted">Win Multiplier</span>
                     <span class="fw-semibold">{{ $match->win_multiplier }}x</span>

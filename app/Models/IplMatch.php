@@ -12,7 +12,7 @@ class IplMatch extends Model
     protected $table = 'matches';
 
     protected $fillable = [
-        'espn_id',
+        'espn_id', 'season_id', 'team_a_id', 'team_b_id',
         'team_a', 'team_b', 'team_a_short', 'team_b_short',
         'team_a_logo', 'team_b_logo',
         'match_date', 'venue', 'match_number',
@@ -29,9 +29,29 @@ class IplMatch extends Model
         return $this->hasMany(Poll::class, 'match_id');
     }
 
+    public function seasonRecord()
+    {
+        return $this->belongsTo(Season::class, 'season_id');
+    }
+
+    public function teamA()
+    {
+        return $this->belongsTo(Team::class, 'team_a_id');
+    }
+
+    public function teamB()
+    {
+        return $this->belongsTo(Team::class, 'team_b_id');
+    }
+
     public function scopeUpcoming($query)
     {
         return $query->where('status', 'upcoming')->orderBy('match_date');
+    }
+
+    public function scopeForSeason($query, $seasonId)
+    {
+        return $query->where('season_id', $seasonId);
     }
 
     public function isLocked(): bool
