@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessMatchResult;
-use App\Models\Match;
+use App\Models\IplMatch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +12,7 @@ class MatchWebController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Match::withCount('polls');
+        $query = IplMatch::withCount('polls');
 
         if ($status = $request->query('status')) {
             $query->where('status', $status);
@@ -45,12 +45,12 @@ class MatchWebController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
-        Match::create($data);
+        IplMatch::create($data);
 
         return redirect()->route('admin.matches.index')->with('success', 'Match created.');
     }
 
-    public function show(Match $match)
+    public function show(IplMatch $match)
     {
         $match->loadCount('polls');
         $polls = $match->polls()->with('user')->latest()->get();
@@ -62,12 +62,12 @@ class MatchWebController extends Controller
         return view('admin.matches.show', compact('match', 'polls', 'teamACount', 'teamBCount', 'totalBid'));
     }
 
-    public function edit(Match $match)
+    public function edit(IplMatch $match)
     {
         return view('admin.matches.edit', compact('match'));
     }
 
-    public function update(Request $request, Match $match)
+    public function update(Request $request, IplMatch $match)
     {
         $data = $request->validate([
             'team_a'         => 'required|string|max:100',
@@ -87,7 +87,7 @@ class MatchWebController extends Controller
         return redirect()->route('admin.matches.show', $match)->with('success', 'Match updated.');
     }
 
-    public function updateStatus(Request $request, Match $match)
+    public function updateStatus(Request $request, IplMatch $match)
     {
         $data = $request->validate([
             'status' => 'required|in:upcoming,live',
@@ -102,7 +102,7 @@ class MatchWebController extends Controller
         return back()->with('success', 'Match status updated to ' . $data['status'] . '.');
     }
 
-    public function setResult(Request $request, Match $match)
+    public function setResult(Request $request, IplMatch $match)
     {
         $teams = $match->getTeams();
 
@@ -123,7 +123,7 @@ class MatchWebController extends Controller
         return back()->with('success', 'Result submitted. Settlement processing in background.');
     }
 
-    public function cancel(Match $match)
+    public function cancel(IplMatch $match)
     {
         if ($match->status === 'completed') {
             return back()->with('error', 'Cannot cancel a completed match.');

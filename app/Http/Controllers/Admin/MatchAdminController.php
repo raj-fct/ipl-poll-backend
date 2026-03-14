@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessMatchResult;
-use App\Models\Match;
+use App\Models\IplMatch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +13,7 @@ class MatchAdminController extends Controller
 {
     public function index(): JsonResponse
     {
-        $matches = Match::withCount('polls')->orderBy('match_date')->get();
+        $matches = IplMatch::withCount('polls')->orderBy('match_date')->get();
         return response()->json(['matches' => $matches]);
     }
 
@@ -34,12 +34,12 @@ class MatchAdminController extends Controller
             'notes'          => 'nullable|string',
         ]);
 
-        $match = Match::create($data);
+        $match = IplMatch::create($data);
 
         return response()->json(['match' => $match, 'message' => 'Match created.'], 201);
     }
 
-    public function update(Request $request, Match $match): JsonResponse
+    public function update(Request $request, IplMatch $match): JsonResponse
     {
         $data = $request->validate([
             'team_a'         => 'sometimes|string|max:100',
@@ -59,7 +59,7 @@ class MatchAdminController extends Controller
         return response()->json(['match' => $match, 'message' => 'Match updated.']);
     }
 
-    public function updateStatus(Request $request, Match $match): JsonResponse
+    public function updateStatus(Request $request, IplMatch $match): JsonResponse
     {
         $data = $request->validate([
             'status' => 'required|in:upcoming,live,completed,cancelled',
@@ -77,7 +77,7 @@ class MatchAdminController extends Controller
     /**
      * Declare result and dispatch async settlement job.
      */
-    public function setResult(Request $request, Match $match): JsonResponse
+    public function setResult(Request $request, IplMatch $match): JsonResponse
     {
         $teams = $match->getTeams();
 
@@ -109,7 +109,7 @@ class MatchAdminController extends Controller
     /**
      * Cancel match and refund all pending bids.
      */
-    public function cancelMatch(Match $match): JsonResponse
+    public function cancelMatch(IplMatch $match): JsonResponse
     {
         if ($match->status === 'completed') {
             return response()->json(['message' => 'Cannot cancel a completed match.'], 422);

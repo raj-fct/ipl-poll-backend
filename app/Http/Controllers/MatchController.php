@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Match;
+use App\Models\IplMatch;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -12,7 +12,7 @@ class MatchController extends Controller
     {
         $userId = $request->user()->id;
 
-        $matches = Match::with(['polls' => fn ($q) => $q->where('user_id', $userId)])
+        $matches = IplMatch::with(['polls' => fn ($q) => $q->where('user_id', $userId)])
             ->orderBy('match_date')
             ->get()
             ->map(fn ($m) => $this->matchResource($m));
@@ -20,7 +20,7 @@ class MatchController extends Controller
         return response()->json(['matches' => $matches]);
     }
 
-    public function show(Request $request, Match $match): JsonResponse
+    public function show(Request $request, IplMatch $match): JsonResponse
     {
         $userId = $request->user()->id;
         $match->load(['polls' => fn ($q) => $q->where('user_id', $userId)]);
@@ -39,7 +39,7 @@ class MatchController extends Controller
         ]);
     }
 
-    private function matchResource(Match $match): array
+    private function matchResource(IplMatch $match): array
     {
         $userPoll = $match->polls->first();
 

@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Models\Match;
+use App\Models\IplMatch;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -25,7 +25,7 @@ class ProcessMatchResult implements ShouldQueue
 
     public function handle(): void
     {
-        $match = Match::with('polls.user')->findOrFail($this->matchId);
+        $match = IplMatch::with('polls.user')->findOrFail($this->matchId);
 
         if ($match->status === 'completed') {
             Log::warning("ProcessMatchResult: Match #{$this->matchId} already completed. Skipping.");

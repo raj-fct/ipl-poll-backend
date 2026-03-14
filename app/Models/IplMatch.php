@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Match extends Model
+class IplMatch extends Model
 {
     use HasFactory;
 
@@ -25,7 +25,7 @@ class Match extends Model
 
     public function polls()
     {
-        return $this->hasMany(Poll::class);
+        return $this->hasMany(Poll::class, 'match_id');
     }
 
     public function scopeUpcoming($query)

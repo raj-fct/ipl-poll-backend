@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Match;
+use App\Models\IplMatch;
 use App\Models\Poll;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +19,7 @@ class PollController extends Controller
             'bid_amount'    => 'required|integer|min:1',
         ]);
 
-        $match = Match::findOrFail($data['match_id']);
+        $match = IplMatch::findOrFail($data['match_id']);
         $user  = $request->user();
 
         if ($match->isLocked()) {

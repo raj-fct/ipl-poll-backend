@@ -26,7 +26,7 @@ class Poll extends Model
 
     public function match()
     {
-        return $this->belongsTo(Match::class);
+        return $this->belongsTo(IplMatch::class, 'match_id');
     }
 
     public function isWinner(string $winningTeam): bool

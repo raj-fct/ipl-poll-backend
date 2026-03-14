@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\CoinTransaction;
-use App\Models\Match;
+use App\Models\IplMatch;
 use App\Models\Poll;
 use App\Models\User;
 
@@ -19,10 +19,10 @@ class DashboardWebController extends Controller
         ];
 
         $matchStats = [
-            'total'     => Match::count(),
-            'upcoming'  => Match::where('status', 'upcoming')->count(),
-            'live'      => Match::where('status', 'live')->count(),
-            'completed' => Match::where('status', 'completed')->count(),
+            'total'     => IplMatch::count(),
+            'upcoming'  => IplMatch::where('status', 'upcoming')->count(),
+            'live'      => IplMatch::where('status', 'live')->count(),
+            'completed' => IplMatch::where('status', 'completed')->count(),
         ];
 
         $coinStats = [
@@ -44,7 +44,7 @@ class DashboardWebController extends Controller
             ->limit(10)
             ->get();
 
-        $recentMatches = Match::withCount('polls')
+        $recentMatches = IplMatch::withCount('polls')
             ->orderByDesc('match_date')
             ->limit(5)
             ->get();

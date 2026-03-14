@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CoinTransaction;
-use App\Models\Match;
+use App\Models\IplMatch;
 use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +19,7 @@ class DashboardController extends Controller
             'inactive' => User::where('is_admin', false)->where('is_active', false)->count(),
         ];
 
-        $matchStats = Match::selectRaw("
+        $matchStats = IplMatch::selectRaw("
             COUNT(*) as total,
             SUM(status = 'upcoming')  as upcoming,
             SUM(status = 'live')      as live,
@@ -51,7 +51,7 @@ class DashboardController extends Controller
                 'coin_balance'  => $u->coin_balance,
             ]);
 
-        $recentMatches = Match::withCount('polls')
+        $recentMatches = IplMatch::withCount('polls')
             ->orderByDesc('match_date')
             ->limit(5)
             ->get();
