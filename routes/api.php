@@ -12,7 +12,7 @@ use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\SettingsAdminController;
 
 // ── Public ────────────────────────────────────────────────────
-Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 
 // ── Authenticated ─────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -59,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/matches/{match}',                  [MatchAdminController::class, 'update']);
         Route::patch('/matches/{match}/status',         [MatchAdminController::class, 'updateStatus']);
         Route::post('/matches/{match}/set-result',      [MatchAdminController::class, 'setResult']);
+        Route::post('/matches/{match}/cancel',          [MatchAdminController::class, 'cancelMatch']);
 
         // Settings
         Route::get('/settings',  [SettingsAdminController::class, 'index']);

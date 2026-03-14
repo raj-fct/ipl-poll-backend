@@ -6,6 +6,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
+        web: __DIR__ . '/../routes/web.php',
         api: __DIR__ . '/../routes/api.php',
         apiPrefix: 'api',
         health: '/up',
@@ -16,8 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        // Return JSON for all API exceptions
         $exceptions->render(function (\Throwable $e, $request) {
+            // JSON responses for API
             if ($request->is('api/*')) {
                 if ($e instanceof \Illuminate\Validation\ValidationException) {
                     return response()->json([
@@ -37,6 +38,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
                     return response()->json(['message' => 'Resource not found.'], 404);
                 }
+            }
+
+            // Redirect unauthenticated web requests to admin login
+            if ($e instanceof \Illuminate\Auth\AuthenticationException && !$request->is('api/*')) {
+                return redirect()->guest(route('admin.login'));
             }
         });
     })->create();

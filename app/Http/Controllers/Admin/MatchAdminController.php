@@ -7,6 +7,7 @@ use App\Jobs\ProcessMatchResult;
 use App\Models\Match;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MatchAdminController extends Controller
 {
@@ -61,7 +62,7 @@ class MatchAdminController extends Controller
     public function updateStatus(Request $request, Match $match): JsonResponse
     {
         $data = $request->validate([
-            'status' => 'required|in:upcoming,live,completed',
+            'status' => 'required|in:upcoming,live,completed,cancelled',
         ]);
 
         if ($match->status === 'completed') {
@@ -103,5 +104,33 @@ class MatchAdminController extends Controller
             'match_id'     => $match->id,
             'winning_team' => $data['winning_team'],
         ]);
+    }
+
+    /**
+     * Cancel match and refund all pending bids.
+     */
+    public function cancelMatch(Match $match): JsonResponse
+    {
+        if ($match->status === 'completed') {
+            return response()->json(['message' => 'Cannot cancel a completed match.'], 422);
+        }
+
+        DB::transaction(function () use ($match) {
+            $polls = $match->polls()->with('user')->where('status', 'pending')->get();
+
+            foreach ($polls as $poll) {
+                $poll->user->creditCoins(
+                    $poll->bid_amount,
+                    'refund',
+                    "Refund for cancelled Match #{$match->match_number}",
+                    $poll
+                );
+                $poll->update(['status' => 'refunded']);
+            }
+
+            $match->update(['status' => 'cancelled']);
+        });
+
+        return response()->json(['message' => 'Match cancelled and all pending bids refunded.']);
     }
 }

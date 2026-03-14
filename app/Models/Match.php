@@ -35,7 +35,7 @@ class Match extends Model
 
     public function isLocked(): bool
     {
-        return in_array($this->status, ['live', 'completed']);
+        return in_array($this->status, ['live', 'completed', 'cancelled']);
     }
 
     public function getTeams(): array

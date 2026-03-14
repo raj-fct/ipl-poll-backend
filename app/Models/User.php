@@ -48,16 +48,20 @@ class User extends Authenticatable
 
     public function creditCoins(int $amount, string $type, string $description, $reference = null): CoinTransaction
     {
-        $this->increment('coin_balance', $amount);
+        $locked = User::lockForUpdate()->find($this->id);
+        $locked->increment('coin_balance', $amount);
+        $this->coin_balance = $locked->fresh()->coin_balance;
         return $this->logTransaction($amount, $type, $description, $reference);
     }
 
     public function debitCoins(int $amount, string $type, string $description, $reference = null): CoinTransaction
     {
-        if ($this->coin_balance < $amount) {
+        $locked = User::lockForUpdate()->find($this->id);
+        if ($locked->coin_balance < $amount) {
             throw new \Exception('Insufficient coin balance.');
         }
-        $this->decrement('coin_balance', $amount);
+        $locked->decrement('coin_balance', $amount);
+        $this->coin_balance = $locked->fresh()->coin_balance;
         return $this->logTransaction(-$amount, $type, $description, $reference);
     }
 
@@ -67,7 +71,7 @@ class User extends Authenticatable
             'user_id'       => $this->id,
             'type'          => $type,
             'amount'        => $amount,
-            'balance_after' => $this->fresh()->coin_balance,
+            'balance_after' => $this->coin_balance,
             'description'   => $description,
         ]);
         if ($reference) {
