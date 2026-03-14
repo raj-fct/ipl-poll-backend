@@ -1,0 +1,17 @@
+<?php
+
+namespace App\Policies;
+
+use App\Models\Poll;
+use App\Models\User;
+
+class PollPolicy
+{
+    /**
+     * Only the poll owner can update their own poll.
+     */
+    public function update(User $user, Poll $poll): bool
+    {
+        return $user->id === $poll->user_id;
+    }
+}
