@@ -12,6 +12,7 @@ class IplMatch extends Model
     protected $table = 'matches';
 
     protected $fillable = [
+        'cricapi_id',
         'team_a', 'team_b', 'team_a_short', 'team_b_short',
         'team_a_logo', 'team_b_logo',
         'match_date', 'venue', 'match_number',
