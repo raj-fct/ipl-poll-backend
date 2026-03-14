@@ -5,143 +5,108 @@ namespace App\Console\Commands;
 use App\Models\IplMatch;
 use App\Models\Setting;
 use App\Services\CricketApiService;
-use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 class FetchIplMatches extends Command
 {
     protected $signature = 'ipl:fetch-matches
-                            {--season= : Season label e.g. "IPL 2025" (defaults to settings)}
-                            {--series-id= : CricAPI series ID (auto-detected if not provided)}';
+                            {--season= : Season year e.g. 2026 (auto-detected from settings)}';
 
-    protected $description = 'Fetch all IPL matches from CricAPI and sync to database';
+    protected $description = 'Fetch all IPL matches from ESPNcricinfo and sync to database';
 
     public function handle(CricketApiService $api): int
     {
-        $season = $this->option('season') ?: Setting::get('season', 'IPL 2025');
-        $this->info("Fetching matches for: {$season}");
+        $seasonLabel = $this->option('season')
+            ?: Setting::get('season', 'IPL 2026');
 
-        // Step 1: Find the series
-        $seriesId = $this->option('series-id');
+        // Extract year from "IPL 2026" or just "2026"
+        preg_match('/(\d{4})/', $seasonLabel, $m);
+        $year = (int) ($m[1] ?? now()->year);
 
-        if (!$seriesId) {
-            $this->info('Searching for series...');
-            $series = $api->findIplSeries($season);
+        $this->info("Fetching IPL {$year} matches from ESPNcricinfo...");
+        $this->newLine();
 
-            if (!$series) {
-                $this->error("Could not find series for '{$season}'. Try passing --series-id manually.");
-                return self::FAILURE;
-            }
-
-            $seriesId = $series['id'];
-            $this->info("Found series: {$series['name']} (ID: {$seriesId})");
-        }
-
-        // Step 2: Fetch all matches
-        $this->info('Fetching match list...');
-        $matches = $api->getSeriesMatches($seriesId);
+        $matches = $api->fetchMatches($year);
 
         if (empty($matches)) {
-            $this->error('No matches found for this series.');
+            $this->error('No matches returned from ESPN API.');
             return self::FAILURE;
         }
 
-        $this->info(count($matches) . ' matches found. Syncing...');
+        $this->info(count($matches) . ' matches found. Syncing to database...');
+        $this->newLine();
 
         $created = 0;
         $updated = 0;
         $skipped = 0;
 
-        $bar = $this->output->createProgressBar(count($matches));
-        $bar->start();
-
-        $matchNumber = 0;
-
         foreach ($matches as $match) {
-            $bar->advance();
-
-            // Skip non-T20 or non-standard matches
-            if (($match['matchType'] ?? '') !== 't20') {
+            // Skip if teams are missing
+            if (empty($match['team_a_short']) || empty($match['team_b_short'])) {
                 $skipped++;
                 continue;
             }
 
-            $teams = $match['teams'] ?? [];
-            if (count($teams) < 2) {
-                $skipped++;
-                continue;
-            }
+            // Find existing by espn_id or by teams + date
+            $existing = IplMatch::where('espn_id', $match['espn_id'])->first();
 
-            $teamACode = $api->getTeamShortCode($teams[0]);
-            $teamBCode = $api->getTeamShortCode($teams[1]);
-
-            if (!$teamACode || !$teamBCode) {
-                $this->newLine();
-                $this->warn("Unknown team(s): {$teams[0]} vs {$teams[1]} — skipping");
-                $skipped++;
-                continue;
-            }
-
-            $matchNumber++;
-
-            $matchDate = null;
-            if (!empty($match['dateTimeGMT'])) {
-                try {
-                    $matchDate = Carbon::parse($match['dateTimeGMT'])->setTimezone('Asia/Kolkata');
-                } catch (\Exception $e) {
-                    $matchDate = !empty($match['date']) ? Carbon::parse($match['date']) : now();
-                }
-            } elseif (!empty($match['date'])) {
-                $matchDate = Carbon::parse($match['date']);
-            }
-
-            $status = $api->determineMatchStatus($match);
-            $winner = $api->parseWinnerFromStatus($match);
-
-            // Check if match already exists by cricapi_id or by teams + date
-            $existing = IplMatch::where('cricapi_id', $match['id'])->first();
-
-            if (!$existing && $matchDate) {
-                $existing = IplMatch::where('team_a_short', $teamACode)
-                    ->where('team_b_short', $teamBCode)
-                    ->whereDate('match_date', $matchDate->toDateString())
+            if (!$existing && $match['match_date']) {
+                $existing = IplMatch::where('team_a_short', $match['team_a_short'])
+                    ->where('team_b_short', $match['team_b_short'])
+                    ->whereDate('match_date', $match['match_date']->toDateString())
                     ->first();
             }
 
-            $data = [
-                'cricapi_id'     => $match['id'],
-                'team_a'         => $api->getTeamFullName($teamACode),
-                'team_b'         => $api->getTeamFullName($teamBCode),
-                'team_a_short'   => $teamACode,
-                'team_b_short'   => $teamBCode,
-                'match_date'     => $matchDate,
-                'venue'          => $match['venue'] ?? null,
-                'season'         => $season,
-            ];
-
             if ($existing) {
-                // Only update if not already manually completed
-                if ($existing->status !== 'completed' && $existing->status !== 'cancelled') {
-                    $updateData = ['venue' => $data['venue']];
-                    if ($matchDate) {
-                        $updateData['match_date'] = $matchDate;
-                    }
-                    $existing->update($updateData);
+                // Update venue, logos, date if match not manually settled
+                $updateData = [
+                    'espn_id'      => $match['espn_id'],
+                    'team_a_logo'  => $match['team_a_logo'],
+                    'team_b_logo'  => $match['team_b_logo'],
+                    'venue'        => $match['venue'] ?? $existing->venue,
+                ];
+
+                if ($existing->status === 'upcoming') {
+                    $updateData['match_date'] = $match['match_date'];
                 }
+
+                $existing->update($updateData);
+
+                $statusIcon = match ($existing->status) {
+                    'completed' => '<fg=green>DONE</>',
+                    'live'      => '<fg=red>LIVE</>',
+                    'cancelled' => '<fg=gray>CNCL</>',
+                    default     => '<fg=yellow>UPDT</>',
+                };
+                $this->line("  {$statusIcon} #{$match['match_number']} {$match['team_a_short']} vs {$match['team_b_short']} — updated");
                 $updated++;
             } else {
-                $data['match_number']   = $matchNumber;
-                $data['status']         = 'upcoming';
-                $data['win_multiplier'] = 1.90;
-                IplMatch::create($data);
+                IplMatch::create([
+                    'espn_id'        => $match['espn_id'],
+                    'match_number'   => $match['match_number'],
+                    'team_a'         => $match['team_a'],
+                    'team_b'         => $match['team_b'],
+                    'team_a_short'   => $match['team_a_short'],
+                    'team_b_short'   => $match['team_b_short'],
+                    'team_a_logo'    => $match['team_a_logo'],
+                    'team_b_logo'    => $match['team_b_logo'],
+                    'match_date'     => $match['match_date'],
+                    'venue'          => $match['venue'],
+                    'season'         => "IPL {$year}",
+                    'status'         => 'upcoming',
+                    'win_multiplier' => 1.90,
+                ]);
+
+                $this->line("  <fg=green>NEW</> #{$match['match_number']} {$match['team_a_short']} vs {$match['team_b_short']} — {$match['match_date']->format('d M Y, h:i A')}");
                 $created++;
             }
         }
 
-        $bar->finish();
-        $this->newLine(2);
-
-        $this->info("Sync complete: {$created} created, {$updated} updated, {$skipped} skipped.");
+        $this->newLine();
+        $this->table(
+            ['Created', 'Updated', 'Skipped', 'Total'],
+            [[$created, $updated, $skipped, count($matches)]]
+        );
 
         return self::SUCCESS;
     }

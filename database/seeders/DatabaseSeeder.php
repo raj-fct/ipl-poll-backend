@@ -29,7 +29,7 @@ class DatabaseSeeder extends Seeder
             ['key' => 'bonus_coins', 'value' => '1000',     'description' => 'Coins awarded to each new user on creation'],
             ['key' => 'min_bid',     'value' => '10',        'description' => 'Minimum coins a user can bid on a match'],
             ['key' => 'max_bid',     'value' => '5000',      'description' => 'Maximum coins a user can bid on a match'],
-            ['key' => 'season',      'value' => 'IPL 2025',  'description' => 'Current IPL season label'],
+            ['key' => 'season',      'value' => 'IPL 2026',  'description' => 'Current IPL season label'],
         ];
 
         foreach ($settings as $s) {

@@ -2,30 +2,17 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
 
 class CricketApiService
 {
-    protected string $baseUrl = 'https://api.cricapi.com/v1';
-    protected string $apiKey;
-
-    // IPL team name → short code mapping
-    protected array $teamMap = [
-        'Chennai Super Kings'       => 'CSK',
-        'Mumbai Indians'            => 'MI',
-        'Royal Challengers Bengaluru' => 'RCB',
-        'Royal Challengers Bangalore' => 'RCB',
-        'Kolkata Knight Riders'     => 'KKR',
-        'Delhi Capitals'            => 'DC',
-        'Punjab Kings'              => 'PBKS',
-        'Kings XI Punjab'           => 'PBKS',
-        'Rajasthan Royals'          => 'RR',
-        'Sunrisers Hyderabad'       => 'SRH',
-        'Gujarat Titans'            => 'GT',
-        'Lucknow Super Giants'      => 'LSG',
-    ];
+    /**
+     * ESPN open API — no key required, returns full match data.
+     * League ID 8048 = Indian Premier League.
+     */
+    protected string $baseUrl = 'https://site.api.espn.com/apis/site/v2/sports/cricket/8048';
 
     // Full team names for each short code
     protected array $teamFullNames = [
@@ -41,123 +28,196 @@ class CricketApiService
         'LSG'  => 'Lucknow Super Giants',
     ];
 
-    public function __construct()
+    /**
+     * Fetch all IPL matches for a given season year.
+     *
+     * Returns parsed array of matches with:
+     *   espn_id, match_number, team_a, team_b, team_a_short, team_b_short,
+     *   team_a_logo, team_b_logo, match_date, venue, status, winning_team,
+     *   score_a, score_b, summary
+     */
+    public function fetchMatches(int $seasonYear): array
     {
-        $this->apiKey = config('services.cricapi.key', '');
+        $response = $this->request('scoreboard', [
+            'season' => $seasonYear,
+            'limit'  => 100,
+        ]);
+
+        if (!$response) {
+            return [];
+        }
+
+        $events = $response['events'] ?? [];
+        $matches = [];
+
+        foreach ($events as $index => $event) {
+            $parsed = $this->parseEvent($event, $index + 1);
+            if ($parsed) {
+                $matches[] = $parsed;
+            }
+        }
+
+        return $matches;
     }
 
     /**
-     * Search for IPL series and return the series ID.
+     * Fetch a single match by ESPN event ID.
      */
-    public function findIplSeries(string $season = 'IPL 2025'): ?array
+    public function fetchMatch(string $espnId): ?array
     {
-        $searchTerm = str_contains($season, 'IPL') ? 'IPL' : $season;
+        // Use the summary endpoint for detailed match info
+        $response = $this->request("summary", ['event' => $espnId]);
 
-        $response = $this->request('series', ['search' => $searchTerm]);
-
-        if (!$response || $response['status'] !== 'success') {
+        if (!$response) {
             return null;
         }
 
-        // Find the matching series
-        foreach ($response['data'] ?? [] as $series) {
-            if (stripos($series['name'], $season) !== false ||
-                stripos($series['name'], str_replace('IPL ', 'Indian Premier League ', $season)) !== false) {
-                return $series;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Get all matches for a series.
-     */
-    public function getSeriesMatches(string $seriesId): array
-    {
-        $response = $this->request('series_info', ['id' => $seriesId]);
-
-        if (!$response || $response['status'] !== 'success') {
-            return [];
-        }
-
-        return $response['data']['matchList'] ?? [];
-    }
-
-    /**
-     * Get detailed info for a specific match.
-     */
-    public function getMatchInfo(string $matchId): ?array
-    {
-        $response = $this->request('match_info', ['id' => $matchId]);
-
-        if (!$response || $response['status'] !== 'success') {
+        $event = $response['header']['competitions'][0] ?? null;
+        if (!$event) {
             return null;
         }
 
-        return $response['data'] ?? null;
+        // Build a compatible event structure
+        return $this->parseSummaryEvent($response, $espnId);
     }
 
     /**
-     * Get current/live matches.
+     * Parse a full event object from the scoreboard API.
      */
-    public function getCurrentMatches(): array
+    protected function parseEvent(array $event, int $fallbackNumber = 0): ?array
     {
-        $response = $this->request('currentMatches');
-
-        if (!$response || $response['status'] !== 'success') {
-            return [];
+        $competition = $event['competitions'][0] ?? null;
+        if (!$competition || count($competition['competitors'] ?? []) < 2) {
+            return null;
         }
 
-        // Filter for IPL T20 matches only
-        return collect($response['data'] ?? [])
-            ->filter(fn ($m) => ($m['matchType'] ?? '') === 't20' && $this->isIplMatch($m))
-            ->values()
-            ->toArray();
-    }
+        $comp1 = $competition['competitors'][0];
+        $comp2 = $competition['competitors'][1];
+        $team1 = $comp1['team'];
+        $team2 = $comp2['team'];
 
-    /**
-     * Get all matches (paginated).
-     */
-    public function getAllMatches(int $offset = 0): array
-    {
-        $response = $this->request('matches', ['offset' => $offset]);
-
-        if (!$response || $response['status'] !== 'success') {
-            return [];
+        // Parse match number from description like "1st Match", "23rd Match"
+        $desc = $competition['description'] ?? $competition['shortDescription'] ?? '';
+        $matchNumber = $fallbackNumber;
+        if (preg_match('/^(\d+)/', $desc, $m)) {
+            $matchNumber = (int) $m[1];
         }
 
-        return $response['data'] ?? [];
-    }
+        // Determine status
+        $statusType = $event['status']['type'] ?? [];
+        $state = $statusType['state'] ?? 'pre';  // pre, in, post
+        $status = match ($state) {
+            'post' => 'completed',
+            'in'   => 'live',
+            default => 'upcoming',
+        };
 
-    /**
-     * Resolve team short code from full team name.
-     */
-    public function getTeamShortCode(string $teamName): ?string
-    {
-        // Direct match
-        if (isset($this->teamMap[$teamName])) {
-            return $this->teamMap[$teamName];
-        }
-
-        // Fuzzy match
-        foreach ($this->teamMap as $name => $code) {
-            if (stripos($teamName, $name) !== false || stripos($name, $teamName) !== false) {
-                return $code;
+        // Determine winner
+        $winningTeam = null;
+        if ($status === 'completed') {
+            if ($comp1['winner'] === 'true' || $comp1['winner'] === true) {
+                $winningTeam = $team1['abbreviation'];
+            } elseif ($comp2['winner'] === 'true' || $comp2['winner'] === true) {
+                $winningTeam = $team2['abbreviation'];
             }
         }
 
-        // Try matching by key words
-        foreach ($this->teamMap as $name => $code) {
-            $words = explode(' ', $name);
-            foreach ($words as $word) {
-                if (strlen($word) > 3 && stripos($teamName, $word) !== false) {
-                    return $code;
-                }
+        // Parse date
+        $matchDate = null;
+        try {
+            $matchDate = Carbon::parse($event['date'])->setTimezone('Asia/Kolkata');
+        } catch (\Exception $e) {
+            $matchDate = now();
+        }
+
+        // Venue
+        $venue = $competition['venue']['fullName'] ?? null;
+
+        // Summary (e.g., "RCB won by 7 wkts (22b rem)")
+        $summary = $event['status']['summary'] ?? $statusType['detail'] ?? null;
+
+        return [
+            'espn_id'        => (string) $event['id'],
+            'match_number'   => $matchNumber,
+            'description'    => $desc,
+            'team_a'         => $team1['displayName'] ?? $team1['name'],
+            'team_b'         => $team2['displayName'] ?? $team2['name'],
+            'team_a_short'   => $team1['abbreviation'],
+            'team_b_short'   => $team2['abbreviation'],
+            'team_a_logo'    => $team1['logo'] ?? null,
+            'team_b_logo'    => $team2['logo'] ?? null,
+            'team_a_color'   => $team1['color'] ?? null,
+            'team_b_color'   => $team2['color'] ?? null,
+            'team_a_id'      => $team1['id'] ?? null,
+            'team_b_id'      => $team2['id'] ?? null,
+            'match_date'     => $matchDate,
+            'venue'          => $venue,
+            'status'         => $status,
+            'winning_team'   => $winningTeam,
+            'score_a'        => $comp1['score'] ?? null,
+            'score_b'        => $comp2['score'] ?? null,
+            'summary'        => $summary,
+            'linescores_a'   => $comp1['linescores'] ?? [],
+            'linescores_b'   => $comp2['linescores'] ?? [],
+        ];
+    }
+
+    /**
+     * Parse the summary endpoint response.
+     */
+    protected function parseSummaryEvent(array $response, string $espnId): ?array
+    {
+        $header = $response['header'] ?? [];
+        $competition = $header['competitions'][0] ?? null;
+
+        if (!$competition || count($competition['competitors'] ?? []) < 2) {
+            return null;
+        }
+
+        $comp1 = $competition['competitors'][0];
+        $comp2 = $competition['competitors'][1];
+        $team1 = $comp1['team'] ?? [];
+        $team2 = $comp2['team'] ?? [];
+
+        $statusType = $competition['status']['type'] ?? [];
+        $state = $statusType['state'] ?? 'pre';
+        $status = match ($state) {
+            'post' => 'completed',
+            'in'   => 'live',
+            default => 'upcoming',
+        };
+
+        $winningTeam = null;
+        if ($status === 'completed') {
+            if (($comp1['winner'] ?? false) === true || ($comp1['winner'] ?? '') === 'true') {
+                $winningTeam = $team1['abbreviation'] ?? null;
+            } elseif (($comp2['winner'] ?? false) === true || ($comp2['winner'] ?? '') === 'true') {
+                $winningTeam = $team2['abbreviation'] ?? null;
             }
         }
 
-        return null;
+        $desc = $competition['description'] ?? '';
+        $matchNumber = 0;
+        if (preg_match('/^(\d+)/', $desc, $m)) {
+            $matchNumber = (int) $m[1];
+        }
+
+        return [
+            'espn_id'      => $espnId,
+            'match_number' => $matchNumber,
+            'description'  => $desc,
+            'team_a'       => $team1['displayName'] ?? $team1['name'] ?? '',
+            'team_b'       => $team2['displayName'] ?? $team2['name'] ?? '',
+            'team_a_short' => $team1['abbreviation'] ?? '',
+            'team_b_short' => $team2['abbreviation'] ?? '',
+            'team_a_logo'  => $team1['logo'] ?? null,
+            'team_b_logo'  => $team2['logo'] ?? null,
+            'status'       => $status,
+            'winning_team' => $winningTeam,
+            'score_a'      => $comp1['score'] ?? null,
+            'score_b'      => $comp2['score'] ?? null,
+            'summary'      => $statusType['shortDetail'] ?? null,
+        ];
     }
 
     /**
@@ -169,96 +229,27 @@ class CricketApiService
     }
 
     /**
-     * Check if a match object is an IPL match.
-     */
-    public function isIplMatch(array $match): bool
-    {
-        $name = strtolower($match['name'] ?? '');
-        $seriesName = strtolower($match['series'] ?? $match['seriesName'] ?? '');
-
-        return str_contains($name, 'ipl') ||
-               str_contains($seriesName, 'indian premier league') ||
-               str_contains($seriesName, 'ipl');
-    }
-
-    /**
-     * Parse match winner from status string.
-     * e.g., "Chennai Super Kings won by 6 wickets" → "CSK"
-     */
-    public function parseWinnerFromStatus(array $match): ?string
-    {
-        // First check matchWinner field
-        if (!empty($match['matchWinner'])) {
-            return $this->getTeamShortCode($match['matchWinner']);
-        }
-
-        // Parse from status string
-        $status = $match['status'] ?? '';
-        if (empty($status) || str_contains(strtolower($status), 'no result')) {
-            return null;
-        }
-
-        // "Team X won by ..."
-        if (preg_match('/^(.+?)\s+won\s+by/i', $status, $matches)) {
-            return $this->getTeamShortCode(trim($matches[1]));
-        }
-
-        return null;
-    }
-
-    /**
-     * Determine match status from API data.
-     */
-    public function determineMatchStatus(array $match): string
-    {
-        $status = strtolower($match['status'] ?? '');
-        $matchWinner = $match['matchWinner'] ?? null;
-
-        if ($matchWinner || str_contains($status, 'won') || str_contains($status, 'no result') || str_contains($status, 'tied')) {
-            return 'completed';
-        }
-
-        if (str_contains($status, 'innings break') || str_contains($status, 'batting') ||
-            str_contains($status, 'bowling') || str_contains($status, 'need') ||
-            str_contains($status, 'trail') || str_contains($status, 'lead')) {
-            return 'live';
-        }
-
-        return 'upcoming';
-    }
-
-    /**
-     * Make API request.
+     * Make API request to ESPN.
      */
     protected function request(string $endpoint, array $params = []): ?array
     {
-        if (empty($this->apiKey)) {
-            Log::error('CricketApiService: API key not configured. Set CRICAPI_KEY in .env');
-            return null;
-        }
-
-        $params['apikey'] = $this->apiKey;
-
         try {
-            $response = Http::timeout(15)
-                ->get("{$this->baseUrl}/{$endpoint}", $params);
+            $url = "{$this->baseUrl}/{$endpoint}";
+
+            $response = Http::timeout(20)
+                ->withHeaders([
+                    'Accept' => 'application/json',
+                ])
+                ->get($url, $params);
 
             if ($response->successful()) {
-                $data = $response->json();
-
-                // Log API usage
-                $info = $data['info'] ?? [];
-                if (isset($info['hitsToday'])) {
-                    Log::debug("CricAPI usage: {$info['hitsToday']}/{$info['hitsLimit']} hits today");
-                }
-
-                return $data;
+                return $response->json();
             }
 
-            Log::error("CricAPI request failed: {$endpoint} - HTTP {$response->status()}");
+            Log::error("ESPN API failed: {$endpoint} — HTTP {$response->status()}");
             return null;
         } catch (\Exception $e) {
-            Log::error("CricAPI request error: {$endpoint} - {$e->getMessage()}");
+            Log::error("ESPN API error: {$endpoint} — {$e->getMessage()}");
             return null;
         }
     }
