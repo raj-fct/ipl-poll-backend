@@ -17,6 +17,12 @@ class MatchWebController extends Controller
         $seasons = Season::orderByDesc('year')->get();
         $selectedSeasonId = $request->query('season');
 
+        // Default to active season (or latest) when no filter is set
+        if (is_null($selectedSeasonId) && !$request->has('season')) {
+            $defaultSeason = Season::active() ?? $seasons->first();
+            $selectedSeasonId = $defaultSeason?->id;
+        }
+
         $query = IplMatch::with(['teamA', 'teamB', 'seasonRecord'])->withCount('polls');
 
         if ($selectedSeasonId) {
