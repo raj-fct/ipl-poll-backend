@@ -51,13 +51,13 @@
                     <tr>
                         <th>#</th>
                         <th>Team A</th>
+                        <th class="text-center">Score</th>
                         <th></th>
+                        <th class="text-center">Score</th>
                         <th>Team B</th>
-                        <th>Season</th>
                         <th>Date & Venue</th>
-                        <th class="text-center">Polls</th>
                         <th class="text-center">Status</th>
-                        <th>Winner</th>
+                        <th>Result</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -66,48 +66,57 @@
                     <tr>
                         <td class="text-muted">{{ $match->match_number }}</td>
                         <td>
-                            <div class="d-flex align-items-center gap-2">
-                                @if($match->teamA && $match->teamA->logo)
-                                    <img src="{{ $match->teamA->logo }}" alt="{{ $match->team_a_short }}" style="width:24px;height:24px;object-fit:contain">
-                                @elseif($match->team_a_logo)
-                                    <img src="{{ $match->team_a_logo }}" alt="{{ $match->team_a_short }}" style="width:24px;height:24px;object-fit:contain">
-                                @endif
-                                <div>
-                                    <span class="fw-semibold">{{ $match->team_a_short }}</span>
-                                    <br><small class="text-muted">{{ $match->team_a }}</small>
+                            <a href="{{ route('admin.matches.show', $match) }}" class="text-decoration-none">
+                                <div class="d-flex align-items-center gap-2">
+                                    @if($match->teamA && $match->teamA->logo)
+                                        <img src="{{ $match->teamA->logo }}" alt="{{ $match->team_a_short }}" style="width:24px;height:24px;object-fit:contain">
+                                    @elseif($match->team_a_logo)
+                                        <img src="{{ $match->team_a_logo }}" alt="{{ $match->team_a_short }}" style="width:24px;height:24px;object-fit:contain">
+                                    @endif
+                                    <span class="fw-semibold {{ $match->winning_team === $match->team_a_short ? 'text-success' : '' }}">{{ $match->team_a_short }}</span>
                                 </div>
-                            </div>
+                            </a>
                         </td>
-                        <td class="text-center text-muted fw-bold">vs</td>
+                        <td class="text-center">
+                            @if($match->score_a)
+                                <small class="fw-semibold">{{ $match->score_a }}</small>
+                            @else
+                                <small class="text-muted">-</small>
+                            @endif
+                        </td>
+                        <td class="text-center text-muted small">vs</td>
+                        <td class="text-center">
+                            @if($match->score_b)
+                                <small class="fw-semibold">{{ $match->score_b }}</small>
+                            @else
+                                <small class="text-muted">-</small>
+                            @endif
+                        </td>
                         <td>
-                            <div class="d-flex align-items-center gap-2">
-                                @if($match->teamB && $match->teamB->logo)
-                                    <img src="{{ $match->teamB->logo }}" alt="{{ $match->team_b_short }}" style="width:24px;height:24px;object-fit:contain">
-                                @elseif($match->team_b_logo)
-                                    <img src="{{ $match->team_b_logo }}" alt="{{ $match->team_b_short }}" style="width:24px;height:24px;object-fit:contain">
-                                @endif
-                                <div>
-                                    <span class="fw-semibold">{{ $match->team_b_short }}</span>
-                                    <br><small class="text-muted">{{ $match->team_b }}</small>
+                            <a href="{{ route('admin.matches.show', $match) }}" class="text-decoration-none">
+                                <div class="d-flex align-items-center gap-2">
+                                    @if($match->teamB && $match->teamB->logo)
+                                        <img src="{{ $match->teamB->logo }}" alt="{{ $match->team_b_short }}" style="width:24px;height:24px;object-fit:contain">
+                                    @elseif($match->team_b_logo)
+                                        <img src="{{ $match->team_b_logo }}" alt="{{ $match->team_b_short }}" style="width:24px;height:24px;object-fit:contain">
+                                    @endif
+                                    <span class="fw-semibold {{ $match->winning_team === $match->team_b_short ? 'text-success' : '' }}">{{ $match->team_b_short }}</span>
                                 </div>
-                            </div>
+                            </a>
                         </td>
-                        <td><small class="text-muted">{{ $match->seasonRecord->name ?? $match->season }}</small></td>
                         <td>
                             <small>{{ $match->match_date->format('d M Y, h:i A') }}</small>
                             <br><small class="text-muted">{{ $match->venue ?? '-' }}</small>
-                        </td>
-                        <td class="text-center">
-                            <a href="{{ route('admin.polls.index', ['match_id' => $match->id]) }}" class="text-decoration-none">
-                                {{ $match->polls_count }}
-                            </a>
                         </td>
                         <td class="text-center">
                             <span class="badge badge-{{ $match->status }}">{{ ucfirst($match->status) }}</span>
                         </td>
                         <td>
                             @if($match->winning_team)
-                                <span class="badge bg-dark">{{ $match->winning_team }}</span>
+                                <span class="badge bg-dark">{{ $match->winning_team }} won</span>
+                                @if($match->toss_winner)
+                                    <br><small class="text-muted">Toss: {{ $match->toss_winner }} ({{ $match->toss_decision }})</small>
+                                @endif
                             @else
                                 <span class="text-muted">-</span>
                             @endif

@@ -44,7 +44,7 @@ class CricketApiService
     }
 
     /**
-     * Fetch a single match by ESPN event ID.
+     * Fetch a single match by ESPN event ID (summary endpoint — includes toss).
      */
     public function fetchMatch(string $espnId): ?array
     {
@@ -63,6 +63,55 @@ class CricketApiService
     }
 
     /**
+     * Fetch toss info for a match from the summary endpoint.
+     * Returns ['toss_winner' => 'CSK', 'toss_decision' => 'bat'] or null.
+     */
+    public function fetchToss(string $espnId): ?array
+    {
+        $response = $this->request("summary", ['event' => $espnId]);
+
+        if (!$response) {
+            return null;
+        }
+
+        return $this->parseToss($response);
+    }
+
+    /**
+     * Parse toss data from summary response notes.
+     * ESPN stores toss as: { "text": "Team Name , elected to bat/field first", "type": "toss" }
+     */
+    protected function parseToss(array $response): ?array
+    {
+        $notes = $response['notes'] ?? [];
+
+        foreach ($notes as $note) {
+            if (($note['type'] ?? '') === 'toss' && !empty($note['text'])) {
+                $text = $note['text'];
+
+                // Parse "Royal Challengers Bengaluru , elected to field first"
+                // or "Chennai Super Kings, elected to bat first"
+                $tossWinner = null;
+                $tossDecision = null;
+
+                if (preg_match('/^(.+?)\s*,\s*elected to (bat|field|bowl)/i', $text, $m)) {
+                    $tossWinner = trim($m[1]);
+                    $decision = strtolower($m[2]);
+                    $tossDecision = ($decision === 'bowl') ? 'field' : $decision;
+                }
+
+                return [
+                    'toss_winner'   => $tossWinner,
+                    'toss_decision' => $tossDecision,
+                    'toss_text'     => $text,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Find or create a Team record from ESPN data.
      */
     public function findOrCreateTeam(array $espnTeam): Team
@@ -70,7 +119,6 @@ class CricketApiService
         $team = Team::where('espn_id', (string) $espnTeam['id'])->first();
 
         if ($team) {
-            // Update logo and color if they've changed
             $team->update(array_filter([
                 'name'       => $espnTeam['displayName'] ?? $espnTeam['name'] ?? $team->name,
                 'short_name' => $espnTeam['abbreviation'] ?? $team->short_name,
@@ -226,6 +274,9 @@ class CricketApiService
             $matchNumber = (int) $m[1];
         }
 
+        // Parse toss from notes
+        $toss = $this->parseToss($response);
+
         return [
             'espn_id'        => $espnId,
             'match_number'   => $matchNumber,
@@ -244,6 +295,8 @@ class CricketApiService
             'winning_team'   => $winningTeam,
             'score_a'        => $comp1['score'] ?? null,
             'score_b'        => $comp2['score'] ?? null,
+            'toss_winner'    => $toss['toss_winner'] ?? null,
+            'toss_decision'  => $toss['toss_decision'] ?? null,
             'summary'        => $statusType['shortDetail'] ?? null,
         ];
     }

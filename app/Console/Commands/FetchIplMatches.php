@@ -11,7 +11,7 @@ class FetchIplMatches extends Command
 {
     protected $signature = 'ipl:fetch-matches
                             {--season= : Season year e.g. 2026 (auto-detected from settings)}
-                            {--with-results : Import completed match results (for historical seasons)}';
+                            {--with-toss : Fetch toss info for each completed match (slower, calls summary API per match)}';
 
     protected $description = 'Fetch all IPL matches from ESPNcricinfo and sync to database';
 
@@ -24,7 +24,7 @@ class FetchIplMatches extends Command
         preg_match('/(\d{4})/', $seasonLabel, $m);
         $year = (int) ($m[1] ?? now()->year);
 
-        $withResults = $this->option('with-results');
+        $withToss = $this->option('with-toss');
 
         $this->info("Fetching IPL {$year} matches from ESPNcricinfo...");
         $this->newLine();
@@ -47,6 +47,7 @@ class FetchIplMatches extends Command
         $created = 0;
         $updated = 0;
         $skipped = 0;
+        $tossCount = 0;
 
         foreach ($matches as $match) {
             // Skip if teams are missing
@@ -69,6 +70,19 @@ class FetchIplMatches extends Command
                     ->first();
             }
 
+            // Fetch toss for completed/live matches
+            $tossWinner = null;
+            $tossDecision = null;
+            if ($withToss && in_array($match['status'], ['completed', 'live']) && $match['espn_id']) {
+                $toss = $api->fetchToss($match['espn_id']);
+                if ($toss && $toss['toss_winner']) {
+                    // Convert full team name to short code
+                    $tossWinner = $this->resolveTeamShortCode($toss['toss_winner'], $match);
+                    $tossDecision = $toss['toss_decision'];
+                    $tossCount++;
+                }
+            }
+
             if ($existing) {
                 $updateData = [
                     'espn_id'      => $match['espn_id'],
@@ -80,6 +94,20 @@ class FetchIplMatches extends Command
                     'venue'        => $match['venue'] ?? $existing->venue,
                 ];
 
+                // Always update scores
+                if ($match['score_a']) {
+                    $updateData['score_a'] = $match['score_a'];
+                }
+                if ($match['score_b']) {
+                    $updateData['score_b'] = $match['score_b'];
+                }
+
+                // Update toss if fetched
+                if ($tossWinner) {
+                    $updateData['toss_winner'] = $tossWinner;
+                    $updateData['toss_decision'] = $tossDecision;
+                }
+
                 if ($existing->status === 'upcoming') {
                     $updateData['match_date'] = $match['match_date'];
                 }
@@ -88,6 +116,11 @@ class FetchIplMatches extends Command
                 if ($match['status'] === 'completed' && $existing->status !== 'completed') {
                     $updateData['status'] = 'completed';
                     $updateData['winning_team'] = $match['winning_team'];
+                    $updateData['notes'] = $match['summary'];
+                }
+
+                // Also update notes/summary for already-completed matches if missing
+                if ($match['status'] === 'completed' && !$existing->notes && $match['summary']) {
                     $updateData['notes'] = $match['summary'];
                 }
 
@@ -104,7 +137,9 @@ class FetchIplMatches extends Command
                     'cancelled' => '<fg=gray>CNCL</>',
                     default     => '<fg=yellow>UPDT</>',
                 };
-                $this->line("  {$statusIcon} #{$match['match_number']} {$match['team_a_short']} vs {$match['team_b_short']} — updated");
+                $scoreInfo = $match['score_a'] ? " | {$match['score_a']} vs {$match['score_b']}" : '';
+                $tossInfo = $tossWinner ? " | Toss: {$tossWinner} ({$tossDecision})" : '';
+                $this->line("  {$statusIcon} #{$match['match_number']} {$match['team_a_short']} vs {$match['team_b_short']}{$scoreInfo}{$tossInfo}");
                 $updated++;
             } else {
                 $status = $match['status'];
@@ -122,25 +157,30 @@ class FetchIplMatches extends Command
                     'team_b_short'   => $match['team_b_short'],
                     'team_a_logo'    => $match['team_a_logo'],
                     'team_b_logo'    => $match['team_b_logo'],
+                    'score_a'        => $match['score_a'],
+                    'score_b'        => $match['score_b'],
                     'match_date'     => $match['match_date'],
                     'venue'          => $match['venue'],
                     'season'         => "IPL {$year}",
                     'status'         => $status,
                     'winning_team'   => $winningTeam,
+                    'toss_winner'    => $tossWinner,
+                    'toss_decision'  => $tossDecision,
                     'win_multiplier' => 1.90,
                     'notes'          => $match['summary'],
                 ]);
 
                 $statusIcon = $status === 'completed' ? '<fg=green>DONE</>' : '<fg=cyan>NEW</>';
-                $this->line("  {$statusIcon} #{$match['match_number']} {$match['team_a_short']} vs {$match['team_b_short']} — {$match['match_date']->format('d M Y, h:i A')}");
+                $scoreInfo = $match['score_a'] ? " | {$match['score_a']} vs {$match['score_b']}" : '';
+                $this->line("  {$statusIcon} #{$match['match_number']} {$match['team_a_short']} vs {$match['team_b_short']}{$scoreInfo}");
                 $created++;
             }
         }
 
         $this->newLine();
         $this->table(
-            ['Created', 'Updated', 'Skipped', 'Total'],
-            [[$created, $updated, $skipped, count($matches)]]
+            ['Created', 'Updated', 'Skipped', 'Toss Fetched', 'Total'],
+            [[$created, $updated, $skipped, $tossCount, count($matches)]]
         );
 
         $this->newLine();
@@ -148,5 +188,43 @@ class FetchIplMatches extends Command
         $this->info("Seasons in database: " . \App\Models\Season::count());
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Convert full team name from toss text to short code.
+     */
+    protected function resolveTeamShortCode(string $fullName, array $match): string
+    {
+        $fullNameLower = strtolower(trim($fullName));
+
+        // Check against team_a and team_b full names
+        if (str_contains(strtolower($match['team_a']), $fullNameLower) ||
+            str_contains($fullNameLower, strtolower($match['team_a']))) {
+            return $match['team_a_short'];
+        }
+
+        if (str_contains(strtolower($match['team_b']), $fullNameLower) ||
+            str_contains($fullNameLower, strtolower($match['team_b']))) {
+            return $match['team_b_short'];
+        }
+
+        // Try partial match on key words
+        $teamAWords = explode(' ', strtolower($match['team_a']));
+        $teamBWords = explode(' ', strtolower($match['team_b']));
+
+        foreach ($teamAWords as $word) {
+            if (strlen($word) > 3 && str_contains($fullNameLower, $word)) {
+                return $match['team_a_short'];
+            }
+        }
+
+        foreach ($teamBWords as $word) {
+            if (strlen($word) > 3 && str_contains($fullNameLower, $word)) {
+                return $match['team_b_short'];
+            }
+        }
+
+        // Fallback: return the full name as-is
+        return $fullName;
     }
 }

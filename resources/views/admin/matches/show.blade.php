@@ -25,11 +25,33 @@
                 @if($match->venue)
                     <br><small class="text-muted"><i class="bi bi-geo-alt"></i> {{ $match->venue }}</small>
                 @endif
-                @if($match->winning_team)
+                @if($match->score_a || $match->score_b)
                     <div class="mt-3">
+                        <div class="d-flex justify-content-center align-items-center gap-4">
+                            <div class="text-center">
+                                <div class="fw-bold">{{ $match->team_a_short }}</div>
+                                <div class="fs-5 fw-semibold">{{ $match->score_a ?? '-' }}</div>
+                            </div>
+                            <div class="text-muted small">vs</div>
+                            <div class="text-center">
+                                <div class="fw-bold">{{ $match->team_b_short }}</div>
+                                <div class="fs-5 fw-semibold">{{ $match->score_b ?? '-' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+                @if($match->winning_team)
+                    <div class="mt-2">
                         <span class="badge bg-success" style="font-size:1rem">
                             <i class="bi bi-trophy"></i> Winner: {{ $match->winning_team }}
                         </span>
+                    </div>
+                @endif
+                @if($match->toss_winner)
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <i class="bi bi-coin"></i> Toss: <strong>{{ $match->toss_winner }}</strong> elected to <strong>{{ $match->toss_decision }}</strong>
+                        </small>
                     </div>
                 @endif
             </div>

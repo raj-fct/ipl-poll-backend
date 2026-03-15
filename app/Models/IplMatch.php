@@ -15,8 +15,11 @@ class IplMatch extends Model
         'espn_id', 'season_id', 'team_a_id', 'team_b_id',
         'team_a', 'team_b', 'team_a_short', 'team_b_short',
         'team_a_logo', 'team_b_logo',
+        'score_a', 'score_b',
         'match_date', 'venue', 'match_number',
-        'season', 'status', 'winning_team', 'win_multiplier', 'notes',
+        'season', 'status', 'winning_team',
+        'toss_winner', 'toss_decision',
+        'win_multiplier', 'notes',
     ];
 
     protected $casts = [
