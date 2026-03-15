@@ -27,7 +27,7 @@ class MatchWebController extends Controller
             $query->where('status', $status);
         }
 
-        $matches = $query->orderByDesc('match_date')->paginate(20)->withQueryString();
+        $matches = $query->orderBy('match_date')->paginate(20)->withQueryString();
 
         return view('admin.matches.index', compact('matches', 'seasons', 'selectedSeasonId'));
     }

@@ -84,11 +84,16 @@ class FetchIplMatches extends Command
                     $updateData['match_date'] = $match['match_date'];
                 }
 
-                // Import results for historical matches
-                if ($withResults && $match['status'] === 'completed' && $existing->status !== 'completed') {
+                // Update results for completed matches
+                if ($match['status'] === 'completed' && $existing->status !== 'completed') {
                     $updateData['status'] = 'completed';
                     $updateData['winning_team'] = $match['winning_team'];
                     $updateData['notes'] = $match['summary'];
+                }
+
+                // Update live status
+                if ($match['status'] === 'live' && $existing->status === 'upcoming') {
+                    $updateData['status'] = 'live';
                 }
 
                 $existing->update($updateData);
@@ -102,8 +107,8 @@ class FetchIplMatches extends Command
                 $this->line("  {$statusIcon} #{$match['match_number']} {$match['team_a_short']} vs {$match['team_b_short']} — updated");
                 $updated++;
             } else {
-                $status = $withResults ? $match['status'] : 'upcoming';
-                $winningTeam = ($withResults && $match['status'] === 'completed') ? $match['winning_team'] : null;
+                $status = $match['status'];
+                $winningTeam = ($match['status'] === 'completed') ? $match['winning_team'] : null;
 
                 IplMatch::create([
                     'espn_id'        => $match['espn_id'],

@@ -84,7 +84,9 @@ class DashboardWebController extends Controller
             ->limit(10)
             ->get();
 
-        $recentMatchesQuery = IplMatch::withCount('polls');
+        $recentMatchesQuery = IplMatch::with(['teamA', 'teamB'])
+            ->withCount('polls')
+            ->whereIn('status', ['completed', 'live']);
         if ($selectedSeason) {
             $recentMatchesQuery->where('season_id', $selectedSeason->id);
         }
