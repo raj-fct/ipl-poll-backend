@@ -57,6 +57,11 @@ class MatchController extends Controller
             'season'         => $match->season,
             'status'         => $match->status,
             'winning_team'   => $match->winning_team,
+            'score_a'        => $match->score_a,
+            'score_b'        => $match->score_b,
+            'toss_winner'    => $match->toss_winner,
+            'toss_decision'  => $match->toss_decision,
+            'notes'          => $match->notes,
             'win_multiplier' => $match->win_multiplier,
             'is_locked'      => $match->isLocked(),
             'user_poll'      => $userPoll ? [
