@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Leaderboard
     Route::get('/leaderboard',          [LeaderboardController::class, 'index']);
+    Route::get('/leaderboard/wins',     [LeaderboardController::class, 'wins']);
     Route::get('/leaderboard/my-rank',  [LeaderboardController::class, 'myRank']);
 
     // ── Admin ─────────────────────────────────────────────────

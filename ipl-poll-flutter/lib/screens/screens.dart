@@ -10,6 +10,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../core/constants.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
+import '../services/api_service.dart';
 import '../main.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -51,21 +52,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const Text('IPL POLL 2026'),
         ]),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 14),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: IPLColors.cardDark,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: IPLColors.border),
+          GestureDetector(
+            onTap: () => context.go('/wallet'),
+            child: Container(
+              margin: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: IPLColors.cardDark,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: IPLColors.border),
+              ),
+              child: Row(children: [
+                const CoinIcon(size: 16),
+                const SizedBox(width: 4),
+                Text('${user?.coinBalance ?? 0}',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              ]),
             ),
-            child: Row(children: [
-              const CoinIcon(size: 16),
-              const SizedBox(width: 4),
-              Text('${user?.coinBalance ?? 0}',
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-            ]),
           ),
         ],
         bottom: PreferredSize(
@@ -157,7 +161,7 @@ class _FixturesTab extends StatelessWidget {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Icon(Icons.error_outline, color: IPLColors.red, size: 48),
             const SizedBox(height: 12),
-            Text(e.toString(), textAlign: TextAlign.center,
+            Text(ApiService.humanError(e), textAlign: TextAlign.center,
                 style: const TextStyle(color: IPLColors.textMuted)),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -203,7 +207,7 @@ class _ResultsTab extends StatelessWidget {
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             const Icon(Icons.error_outline, color: IPLColors.red, size: 48),
             const SizedBox(height: 12),
-            Text(e.toString(), textAlign: TextAlign.center,
+            Text(ApiService.humanError(e), textAlign: TextAlign.center,
                 style: const TextStyle(color: IPLColors.textMuted)),
             const SizedBox(height: 16),
             ElevatedButton(
@@ -296,7 +300,7 @@ class _LeaderboardTab extends ConsumerWidget {
           ),
           boardAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Text(e.toString()),
+            error: (e, _) => Text(ApiService.humanError(e)),
             data: (entries) => Column(
               children: entries.map((e) => _LeaderRowInline(
                 entry: e,
@@ -666,6 +670,8 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
   String? _selectedTeam;
   double _bidSlider = 100;
   bool _loading = false;
+  bool _cancelLoading = false;
+  bool _initialized = false;
   late final Timer _countdownTimer;
   Duration _remaining = Duration.zero;
   DateTime? _cutoffTime;
@@ -695,17 +701,27 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(matchDetailProvider(widget.matchId));
     final user = ref.watch(authProvider);
-    final maxBid = (user?.coinBalance ?? 100).toDouble().clamp(10.0, 99999.0);
 
     return Scaffold(
       body: IPLBackground(child: detailAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text(e.toString())),
+        error: (e, _) => Center(child: Text(ApiService.humanError(e))),
         data: (data) {
           final match = MatchModel.fromJson(data['match']);
           final stats = data['stats'] as Map<String, dynamic>;
-          _selectedTeam ??= match.userPoll?.selectedTeam;
-          if (match.userPoll != null) _bidSlider = match.userPoll!.bidAmount.toDouble();
+          // Treat refunded poll as no active poll
+          final activePoll = (match.userPoll != null && !match.userPoll!.isRefunded)
+              ? match.userPoll : null;
+          // Add back current bid so user sees their full available balance
+          final currentBid = activePoll?.bidAmount ?? 0;
+          final maxBid = ((user?.coinBalance ?? 100) + currentBid).toDouble().clamp(10.0, 99999.0);
+          if (!_initialized) {
+            _initialized = true;
+            _selectedTeam = activePoll?.selectedTeam;
+            if (activePoll != null) {
+              _bidSlider = activePoll.bidAmount.toDouble();
+            }
+          }
           if (_bidSlider > maxBid) _bidSlider = maxBid;
 
           // Set cutoff to 30 min before match
@@ -870,7 +886,32 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
                         teamAPercent: (stats['team_a_percentage'] as num).toInt(),
                         total: (stats['total_polls'] as num).toInt()),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+
+                    // View all predictions link (only after polls close)
+                    if (!canPredict)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => context.push('/match/${match.id}/biddings'),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Text('View All Predictions',
+                                    style: TextStyle(color: IPLColors.accent,
+                                        fontSize: 12, fontWeight: FontWeight.w600)),
+                                SizedBox(width: 4),
+                                Icon(Icons.arrow_forward_ios,
+                                    color: IPLColors.accent, size: 12),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 8),
 
                     // Prediction / Result / Locked / Cancelled
                     if (canPredict)
@@ -880,9 +921,11 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
                         bidSlider: _bidSlider,
                         maxBid: maxBid,
                         loading: _loading,
+                        cancelLoading: _cancelLoading,
                         onSelectTeam: (t) => setState(() => _selectedTeam = t),
                         onBidChanged: (v) => setState(() => _bidSlider = v),
                         onSubmit: () => _submitPoll(match),
+                        onCancel: activePoll != null ? () => _cancelPoll(match) : null,
                       )
                     else if (match.isUpcoming && _isPredictionLocked)
                       Container(
@@ -902,16 +945,16 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
                           const SizedBox(height: 4),
                           const Text('Window closed 30 min before match.',
                               style: TextStyle(color: IPLColors.textMuted, fontSize: 11)),
-                          if (match.userPoll != null) ...[
+                          if (activePoll != null) ...[
                             const SizedBox(height: 8),
-                            Text('Your pick: ${match.userPoll!.selectedTeam}  ·  ${match.userPoll!.bidAmount} coins',
+                            Text('Your pick: ${activePoll.selectedTeam}  ·  ${activePoll.bidAmount} coins',
                                 style: const TextStyle(color: IPLColors.textSecondary, fontSize: 12,
                                     fontWeight: FontWeight.w600)),
                           ],
                         ]),
                       )
-                    else if (match.isLocked && match.userPoll != null)
-                      _ResultCard(poll: match.userPoll!, match: match)
+                    else if (match.isLocked && activePoll != null)
+                      _ResultCard(poll: activePoll, match: match)
                     else if (match.isCancelled)
                       Container(
                         width: double.infinity,
@@ -963,7 +1006,8 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
 
     try {
       final api = ref.read(apiServiceProvider);
-      if (match.userPoll == null) {
+      final hasActivePoll = match.userPoll != null && !match.userPoll!.isRefunded;
+      if (!hasActivePoll) {
         await api.placePoll(
             matchId: match.id,
             selectedTeam: _selectedTeam!,
@@ -974,9 +1018,12 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
             selectedTeam: _selectedTeam!,
             bidAmount: _bidSlider.toInt());
       }
-      ref.invalidate(matchDetailProvider(match.id));
+      // Refresh match detail & wallet balance, await to ensure UI updates
+      await Future.wait([
+        ref.refresh(matchDetailProvider(match.id).future),
+        ref.refresh(walletBalanceProvider.future),
+      ]);
       ref.invalidate(matchesProvider);
-      ref.invalidate(walletBalanceProvider);
       ref.invalidate(myPollsProvider);
       ref.invalidate(transactionsProvider);
       if (!mounted) return;
@@ -986,10 +1033,67 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        SnackBar(content: Text(ApiService.humanError(e)), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _cancelPoll(MatchModel match) async {
+    if (match.userPoll == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: IPLColors.cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Cancel Bid', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Text(
+          'Are you sure you want to cancel your bid of ${match.userPoll!.bidAmount} coins on ${match.userPoll!.selectedTeam}?',
+          style: const TextStyle(color: IPLColors.textSecondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No', style: TextStyle(color: IPLColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes, Cancel', style: TextStyle(color: IPLColors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _cancelLoading = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.cancelPoll(match.userPoll!.id);
+      // Reset selection state — keep _initialized true so stale data doesn't repopulate
+      _selectedTeam = null;
+      _bidSlider = 100;
+      // Refresh data
+      await Future.wait([
+        ref.refresh(matchDetailProvider(match.id).future),
+        ref.refresh(walletBalanceProvider.future),
+      ]);
+      ref.invalidate(matchesProvider);
+      ref.invalidate(myPollsProvider);
+      ref.invalidate(transactionsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bid cancelled. Coins refunded!'), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ApiService.humanError(e)), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _cancelLoading = false);
     }
   }
 }
@@ -1360,9 +1464,11 @@ class _PredictionPanel extends StatelessWidget {
   final double bidSlider;
   final double maxBid;
   final bool loading;
+  final bool cancelLoading;
   final ValueChanged<String> onSelectTeam;
   final ValueChanged<double> onBidChanged;
   final VoidCallback onSubmit;
+  final VoidCallback? onCancel;
 
   const _PredictionPanel({
     required this.match,
@@ -1370,9 +1476,11 @@ class _PredictionPanel extends StatelessWidget {
     required this.bidSlider,
     required this.maxBid,
     required this.loading,
+    this.cancelLoading = false,
     required this.onSelectTeam,
     required this.onBidChanged,
     required this.onSubmit,
+    this.onCancel,
   });
 
   @override
@@ -1472,12 +1580,33 @@ class _PredictionPanel extends StatelessWidget {
             child: loading
                 ? const SizedBox(height: 18, width: 18,
                     child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : Text(match.userPoll == null
+                : Text((match.userPoll == null || match.userPoll!.isRefunded)
                     ? 'Place Prediction  ·  ${bidSlider.toInt()} coins'
                     : 'Update  ·  ${bidSlider.toInt()} coins',
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
           ),
         ),
+
+        // Cancel bid button (only shown when user has an existing poll)
+        if (match.userPoll != null && onCancel != null) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: cancelLoading ? null : onCancel,
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                side: const BorderSide(color: IPLColors.red),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: cancelLoading
+                  ? const SizedBox(height: 18, width: 18,
+                      child: CircularProgressIndicator(color: IPLColors.red, strokeWidth: 2))
+                  : const Text('Cancel Bid',
+                      style: TextStyle(color: IPLColors.red, fontSize: 14, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
       ]),
     );
   }
@@ -1566,14 +1695,16 @@ class _ResultCard extends StatelessWidget {
         const SizedBox(height: 10),
         Text(title,
             style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text('Picked: ${poll.selectedTeam}  ·  Bid: ',
-              style: const TextStyle(color: IPLColors.textSecondary)),
-          const CoinIcon(size: 13),
-          Text(' ${poll.bidAmount}',
-              style: const TextStyle(color: IPLColors.textSecondary)),
-        ]),
+        if (!isRefunded) ...[
+          const SizedBox(height: 4),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text('Picked: ${poll.selectedTeam}  ·  Bid: ',
+                style: const TextStyle(color: IPLColors.textSecondary)),
+            const CoinIcon(size: 13),
+            Text(' ${poll.bidAmount}',
+                style: const TextStyle(color: IPLColors.textSecondary)),
+          ]),
+        ],
         if (isWon) ...[
           const SizedBox(height: 10),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -1612,15 +1743,43 @@ class MyPollsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pollsAsync = ref.watch(myPollsProvider);
+    final user = ref.watch(authProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Predictions')),
+      appBar: AppBar(
+        title: const Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.poll_rounded, size: 22, color: IPLColors.accent),
+          SizedBox(width: 8),
+          Text('My Predictions'),
+        ]),
+        actions: [
+          GestureDetector(
+            onTap: () => context.go('/wallet'),
+            child: Container(
+              margin: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: IPLColors.cardDark,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: IPLColors.border),
+              ),
+              child: Row(children: [
+                const CoinIcon(size: 16),
+                const SizedBox(width: 4),
+                Text('${user?.coinBalance ?? 0}',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              ]),
+            ),
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         color: IPLColors.accent,
         onRefresh: () => ref.refresh(myPollsProvider.future),
         child: pollsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text(e.toString())),
+          error: (e, _) => Center(child: Text(ApiService.humanError(e))),
           data: (polls) {
             if (polls.isEmpty) {
               return const Center(child: Text('No predictions yet. Place your first one!',
@@ -1629,7 +1788,10 @@ class MyPollsScreen extends ConsumerWidget {
             return ListView.builder(
               padding: const EdgeInsets.all(14),
               itemCount: polls.length,
-              itemBuilder: (ctx, i) => _PollTile(poll: polls[i]),
+              itemBuilder: (ctx, i) => GestureDetector(
+                onTap: () => context.push('/match/${polls[i].matchId}'),
+                child: _PollTile(poll: polls[i]),
+              ),
             );
           },
         ),
@@ -1661,23 +1823,51 @@ class _PollTile extends StatelessWidget {
           width: 42, height: 42,
           decoration: BoxDecoration(
             color: color.withOpacity(0.1), shape: BoxShape.circle),
-          child: Icon(_statusIcon, color: color, size: 20),
+          child: Text(
+            poll.match != null ? '#${poll.match!.matchNumber}' : '#${poll.matchId}',
+            style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w800),
+          ),
+          alignment: Alignment.center,
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(poll.match != null
-              ? 'Match #${poll.match!.matchNumber}: ${poll.match!.teamAShort} vs ${poll.match!.teamBShort}'
-              : 'Match #${poll.matchId}',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600,
-                  fontSize: 13)),
+          if (poll.match != null)
+            Row(children: [
+              TeamLogo(shortCode: poll.match!.teamAShort, logoUrl: poll.match!.teamALogo, size: 20),
+              const SizedBox(width: 6),
+              Text(poll.match!.teamAShort, style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              const Text('  vs  ', style: TextStyle(
+                  color: IPLColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500)),
+              Text(poll.match!.teamBShort, style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              const SizedBox(width: 6),
+              TeamLogo(shortCode: poll.match!.teamBShort, logoUrl: poll.match!.teamBLogo, size: 20),
+            ])
+          else
+            Text('Match #${poll.matchId}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600,
+                    fontSize: 13)),
           const SizedBox(height: 3),
-          Row(children: [
-            Text('Picked: ${poll.selectedTeam}  ·  Bid: ',
-                style: const TextStyle(color: IPLColors.textMuted, fontSize: 11)),
-            const CoinIcon(size: 11),
-            Text(' ${poll.bidAmount}',
-                style: const TextStyle(color: IPLColors.textMuted, fontSize: 11)),
-          ]),
+          if (poll.status == 'refunded')
+            const Text('Cancelled',
+                style: TextStyle(color: IPLColors.textMuted, fontSize: 11))
+          else
+            Row(children: [
+              const Text('Picked: ', style: TextStyle(color: IPLColors.textMuted, fontSize: 11)),
+              TeamLogo(shortCode: poll.selectedTeam,
+                  logoUrl: poll.match != null
+                      ? (poll.selectedTeam == poll.match!.teamAShort
+                          ? poll.match!.teamALogo : poll.match!.teamBLogo)
+                      : null,
+                  size: 16),
+              const SizedBox(width: 4),
+              Text('${poll.selectedTeam}  ·  Bid: ',
+                  style: const TextStyle(color: IPLColors.textMuted, fontSize: 11)),
+              const CoinIcon(size: 11),
+              Text(' ${poll.bidAmount}',
+                  style: const TextStyle(color: IPLColors.textMuted, fontSize: 11)),
+            ]),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Container(
@@ -1719,29 +1909,33 @@ class WalletScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final balanceAsync = ref.watch(walletBalanceProvider);
     final txnsAsync    = ref.watch(transactionsProvider);
+    final pollsAsync   = ref.watch(myPollsProvider);
 
     final isLoading = balanceAsync.isLoading || txnsAsync.isLoading;
     final hasError = balanceAsync.hasError || txnsAsync.hasError;
-    final errorMsg = balanceAsync.error?.toString() ?? txnsAsync.error?.toString() ?? '';
+    final errorMsg = balanceAsync.hasError
+        ? ApiService.humanError(balanceAsync.error!)
+        : txnsAsync.hasError
+            ? ApiService.humanError(txnsAsync.error!)
+            : '';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Wallet')),
+      appBar: AppBar(title: const Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.wallet_rounded, size: 22, color: IPLColors.accent),
+        SizedBox(width: 8),
+        Text('Wallet'),
+      ])),
       body: IPLBackground(child: isLoading
           ? const Center(child: CircularProgressIndicator())
           : hasError
               ? Center(child: Text(errorMsg, style: const TextStyle(color: IPLColors.textMuted)))
-              : RefreshIndicator(
-                  color: IPLColors.accent,
-                  onRefresh: () async {
-                    ref.refresh(walletBalanceProvider);
-                    ref.refresh(transactionsProvider);
-                  },
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      // Balance card
-                      if (balanceAsync.hasValue)
-                        Container(
+              : Column(
+                  children: [
+                    // Fixed balance card
+                    if (balanceAsync.hasValue)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        child: Container(
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
@@ -1767,21 +1961,48 @@ class WalletScreen extends ConsumerWidget {
                             Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
                               _WalletStat('Total Won', '${balanceAsync.value!['total_won']}', Colors.greenAccent),
                               Container(width: 1, height: 30, color: IPLColors.border),
-                              _WalletStat('Total Staked', '${balanceAsync.value!['total_staked']}', IPLColors.accent),
+                              _WalletStat('Pending', '${pollsAsync.whenOrNull(data: (polls) => polls.where((p) => p.isPending).fold<int>(0, (sum, p) => sum + p.bidAmount)) ?? 0}', IPLColors.accent),
                             ]),
                           ]),
                         ),
+                      ),
 
-                      const SizedBox(height: 24),
-                      const Text('TRANSACTION HISTORY',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                              color: IPLColors.textMuted, letterSpacing: 1)),
-                      const SizedBox(height: 12),
+                    // Transaction header
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('TRANSACTION HISTORY',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                                color: IPLColors.textMuted, letterSpacing: 1)),
+                      ),
+                    ),
 
-                      if (txnsAsync.hasValue)
-                        ...txnsAsync.value!.map((t) => _TxnTile(txn: t)),
-                    ],
-                  ),
+                    // Scrollable transactions
+                    Expanded(
+                      child: RefreshIndicator(
+                        color: IPLColors.accent,
+                        onRefresh: () async {
+                          ref.refresh(walletBalanceProvider);
+                          ref.refresh(transactionsProvider);
+                          ref.invalidate(myPollsProvider);
+                        },
+                        child: txnsAsync.hasValue && txnsAsync.value!.isNotEmpty
+                            ? ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                itemCount: txnsAsync.value!.length,
+                                itemBuilder: (_, i) => _TxnTile(txn: txnsAsync.value![i]),
+                              )
+                            : ListView(
+                                children: const [
+                                  SizedBox(height: 60),
+                                  Center(child: Text('No transactions yet',
+                                      style: TextStyle(color: IPLColors.textMuted, fontSize: 13))),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ],
                 )),
     );
   }
@@ -1853,21 +2074,59 @@ class _TxnTile extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // lib/screens/leaderboard_screen.dart
 
-class LeaderboardScreen extends ConsumerWidget {
+class LeaderboardScreen extends ConsumerStatefulWidget {
   const LeaderboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LeaderboardScreen> createState() => _LeaderboardScreenState();
+}
+
+class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final rankAsync    = ref.watch(myRankProvider);
-    final boardAsync   = ref.watch(leaderboardProvider);
     final currentUser  = ref.watch(authProvider);
+    final isCoinsTab   = _tabController.index == 0;
+
+    final boardAsync = isCoinsTab
+        ? ref.watch(leaderboardProvider)
+        : ref.watch(winsLeaderboardProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Leaderboard')),
+      appBar: AppBar(
+        title: const Text('Leaderboard'),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: IPLColors.accent,
+          labelColor: IPLColors.accent,
+          unselectedLabelColor: IPLColors.textMuted,
+          tabs: const [
+            Tab(text: 'Coins'),
+            Tab(text: 'Wins'),
+          ],
+        ),
+      ),
       body: RefreshIndicator(
         color: IPLColors.accent,
         onRefresh: () async {
           ref.refresh(leaderboardProvider);
+          ref.refresh(winsLeaderboardProvider);
           ref.refresh(myRankProvider);
         },
         child: ListView(
@@ -1894,16 +2153,24 @@ class LeaderboardScreen extends ConsumerWidget {
                           color: IPLColors.textMuted, fontSize: 10,
                           fontWeight: FontWeight.w600, letterSpacing: 1)),
                       const SizedBox(height: 4),
-                      Text('#${data['rank']}',
+                      Text('#${isCoinsTab ? data['rank'] : data['wins_rank']}',
                           style: const TextStyle(color: Colors.white,
                               fontSize: 28, fontWeight: FontWeight.w800)),
                     ]),
                     Row(children: [
-                      const CoinIcon(size: 18),
-                      const SizedBox(width: 6),
-                      Text('${data['coin_balance']}',
-                          style: const TextStyle(color: Colors.white,
-                              fontWeight: FontWeight.w700, fontSize: 16)),
+                      if (isCoinsTab) ...[
+                        const CoinIcon(size: 18),
+                        const SizedBox(width: 6),
+                        Text('${data['coin_balance']}',
+                            style: const TextStyle(color: Colors.white,
+                                fontWeight: FontWeight.w700, fontSize: 16)),
+                      ] else ...[
+                        const Icon(Icons.emoji_events, color: Colors.amber, size: 18),
+                        const SizedBox(width: 6),
+                        Text('${data['total_wins']} wins',
+                            style: const TextStyle(color: Colors.white,
+                                fontWeight: FontWeight.w700, fontSize: 16)),
+                      ],
                     ]),
                   ],
                 ),
@@ -1912,11 +2179,12 @@ class LeaderboardScreen extends ConsumerWidget {
 
             boardAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text(e.toString()),
+              error: (e, _) => Text(ApiService.humanError(e)),
               data: (entries) => Column(
                 children: entries.map((e) => _LeaderRow(
                   entry: e,
                   isMe: e.id == currentUser?.id,
+                  showWins: !isCoinsTab,
                 )).toList(),
               ),
             ),
@@ -1930,7 +2198,8 @@ class LeaderboardScreen extends ConsumerWidget {
 class _LeaderRow extends StatelessWidget {
   final LeaderboardEntry entry;
   final bool isMe;
-  const _LeaderRow({required this.entry, required this.isMe});
+  final bool showWins;
+  const _LeaderRow({required this.entry, required this.isMe, this.showWins = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1967,12 +2236,20 @@ class _LeaderRow extends StatelessWidget {
           Text(entry.mobileMasked,
               style: const TextStyle(color: IPLColors.textMuted, fontSize: 11)),
         ])),
-        Row(children: [
-          const CoinIcon(size: 14),
-          const SizedBox(width: 4),
-          Text('${entry.coinBalance}',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-        ]),
+        if (showWins)
+          Row(children: [
+            const Icon(Icons.emoji_events, color: Colors.amber, size: 14),
+            const SizedBox(width: 4),
+            Text('${entry.totalWins}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ])
+        else
+          Row(children: [
+            const CoinIcon(size: 14),
+            const SizedBox(width: 4),
+            Text('${entry.coinBalance}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ]),
       ]),
     );
   }
@@ -1990,10 +2267,37 @@ class ProfileScreen extends ConsumerWidget {
     final profileAsync = ref.watch(profileProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.person_rounded, size: 22, color: IPLColors.accent),
+          SizedBox(width: 8),
+          Text('Profile'),
+        ]),
+        actions: [
+          GestureDetector(
+            onTap: () => context.go('/wallet'),
+            child: Container(
+              margin: const EdgeInsets.only(right: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: IPLColors.cardDark,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: IPLColors.border),
+              ),
+              child: Row(children: [
+                const CoinIcon(size: 16),
+                const SizedBox(width: 4),
+                Text('${user?.coinBalance ?? 0}',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              ]),
+            ),
+          ),
+        ],
+      ),
       body: IPLBackground(child: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error:   (e, _) => Center(child: Text(e.toString())),
+        error:   (e, _) => Center(child: Text(ApiService.humanError(e))),
         data: (data) {
           final stats = data['stats'] as Map<String, dynamic>;
           return ListView(
@@ -2030,7 +2334,8 @@ class ProfileScreen extends ConsumerWidget {
                 childAspectRatio: 1.6,
                 children: [
                   _StatCard('Total Polls', '${stats['total_polls']}',
-                      Icons.how_to_vote, IPLColors.accent),
+                      Icons.poll_rounded, IPLColors.accent,
+                      onTap: () => context.go('/my-polls')),
                   _StatCard('Won', '${stats['won']}',
                       Icons.emoji_events, Colors.greenAccent),
                   _StatCard('Lost', '${stats['lost']}',
@@ -2072,26 +2377,30 @@ class _StatCard extends StatelessWidget {
   final String label, value;
   final IconData icon;
   final Color color;
-  const _StatCard(this.label, this.value, this.icon, this.color);
+  final VoidCallback? onTap;
+  const _StatCard(this.label, this.value, this.icon, this.color, {this.onTap});
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-    decoration: BoxDecoration(
-      color: IPLColors.cardDark,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: IPLColors.border.withOpacity(0.3)),
-    ),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, color: color, size: 22),
-        const SizedBox(height: 6),
-        Text(value, style: TextStyle(color: color,
-            fontSize: 18, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 2),
-        Text(label, style: const TextStyle(color: IPLColors.textMuted, fontSize: 10)),
-      ],
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: IPLColors.cardDark,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: IPLColors.border.withOpacity(0.3)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 6),
+          Text(value, style: TextStyle(color: color,
+              fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(color: IPLColors.textMuted, fontSize: 10)),
+        ],
+      ),
     ),
   );
 }
@@ -2139,7 +2448,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      _showError(e.toString());
+      _showError(ApiService.humanError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -2276,7 +2585,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       context.go('/home');
     } catch (e) {
       if (!mounted) return;
-      _showError(e.toString());
+      _showError(ApiService.humanError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -2359,6 +2668,226 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// lib/screens/match_biddings_screen.dart
+
+class MatchBiddingsScreen extends ConsumerWidget {
+  final int matchId;
+  const MatchBiddingsScreen({super.key, required this.matchId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pollsAsync = ref.watch(matchPollsProvider(matchId));
+    final detailAsync = ref.watch(matchDetailProvider(matchId));
+
+    return Scaffold(
+      body: IPLBackground(
+        child: Column(children: [
+          // ── Header ──
+          detailAsync.when(
+            loading: () => SizedBox(
+              height: MediaQuery.of(context).padding.top + 56,
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, __) => const SizedBox(),
+            data: (data) {
+              final match = MatchModel.fromJson(data['match']);
+              final stats = data['stats'] as Map<String, dynamic>;
+              final totalPolls = (stats['total_polls'] as num).toInt();
+              return Container(
+                width: double.infinity,
+                padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  bottom: 14, left: 16, right: 16,
+                ),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFF003366), IPLColors.darkNavy],
+                  ),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+                child: Column(children: [
+                  // Top bar: back + title
+                  Row(children: [
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Match ${match.matchNumber}: ${match.teamAShort} vs ${match.teamBShort}',
+                        style: const TextStyle(color: Colors.white,
+                            fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: IPLColors.accent.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text('$totalPolls votes',
+                          style: const TextStyle(color: IPLColors.accent,
+                              fontSize: 10, fontWeight: FontWeight.w700)),
+                    ),
+                  ]),
+                  const SizedBox(height: 14),
+                  // Teams row
+                  Row(children: [
+                    Expanded(child: Column(children: [
+                      TeamLogo(shortCode: match.teamAShort, logoUrl: match.teamALogo, size: 40),
+                      const SizedBox(height: 4),
+                      Text(match.teamAShort, style: const TextStyle(
+                          color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+                      if (match.scoreA != null)
+                        Text(match.scoreA!, style: const TextStyle(
+                            color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ])),
+                    Column(children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text('VS', style: TextStyle(fontSize: 11,
+                            fontWeight: FontWeight.w800, color: IPLColors.textMuted,
+                            letterSpacing: 2)),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: match.isCompleted
+                              ? Colors.green.withOpacity(0.15)
+                              : IPLColors.accent.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(match.status.toUpperCase(),
+                            style: TextStyle(
+                                color: match.isCompleted ? Colors.green : IPLColors.accent,
+                                fontSize: 9, fontWeight: FontWeight.w700)),
+                      ),
+                    ]),
+                    Expanded(child: Column(children: [
+                      TeamLogo(shortCode: match.teamBShort, logoUrl: match.teamBLogo, size: 40),
+                      const SizedBox(height: 4),
+                      Text(match.teamBShort, style: const TextStyle(
+                          color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800)),
+                      if (match.scoreB != null)
+                        Text(match.scoreB!, style: const TextStyle(
+                            color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ])),
+                  ]),
+                  // (User's prediction hidden from this screen)
+                ]),
+              );
+            },
+          ),
+
+          // ── Biddings List ──
+          Expanded(
+            child: RefreshIndicator(
+              color: IPLColors.accent,
+              onRefresh: () => ref.refresh(matchPollsProvider(matchId).future),
+              child: pollsAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text(ApiService.humanError(e),
+                    style: const TextStyle(color: IPLColors.textMuted))),
+                data: (data) {
+                  final polls = data['polls'] as List? ?? [];
+                  if (polls.isEmpty) {
+                    return const Center(child: Text('No predictions yet.',
+                        style: TextStyle(color: IPLColors.textMuted)));
+                  }
+                  // Build logo map from match detail
+                  final matchData = detailAsync.valueOrNull;
+                  Map<String, String?> teamLogos = {};
+                  if (matchData != null) {
+                    final m = MatchModel.fromJson(matchData['match']);
+                    teamLogos[m.teamAShort] = m.teamALogo;
+                    teamLogos[m.teamBShort] = m.teamBLogo;
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(14),
+                    itemCount: polls.length,
+                    itemBuilder: (ctx, i) {
+                      final poll = polls[i] as Map<String, dynamic>;
+                      return _BiddingTile(poll: poll, teamLogos: teamLogos);
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _BiddingTile extends StatelessWidget {
+  final Map<String, dynamic> poll;
+  final Map<String, String?> teamLogos;
+  const _BiddingTile({required this.poll, this.teamLogos = const {}});
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (poll['status'] as String?) ?? 'pending';
+    final isWon = status == 'won';
+    final isLost = status == 'lost';
+    final color = isWon ? Colors.greenAccent
+        : isLost ? IPLColors.red
+        : IPLColors.accent;
+    final userName = poll['user_name'] as String? ?? 'User';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: IPLColors.cardDark,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: IPLColors.border.withOpacity(0.3)),
+      ),
+      child: Row(children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: IPLColors.navy,
+          child: Text(userName[0].toUpperCase(),
+              style: const TextStyle(color: Colors.white,
+                  fontSize: 14, fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text(userName,
+            style: const TextStyle(color: Colors.white,
+                fontWeight: FontWeight.w600, fontSize: 13))),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(4)),
+          child: Text(status.toUpperCase(),
+              style: TextStyle(color: color, fontSize: 9,
+                  fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+        ),
+      ]),
     );
   }
 }

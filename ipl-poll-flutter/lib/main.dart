@@ -10,6 +10,7 @@ import 'screens/login_screen.dart';
 import 'screens/change_password_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/match_detail_screen.dart';
+import 'screens/match_biddings_screen.dart';
 import 'screens/my_polls_screen.dart';
 import 'screens/wallet_screen.dart';
 import 'screens/profile_screen.dart';
@@ -66,6 +67,13 @@ GoRouter _router(WidgetRef ref) => GoRouter(
           builder: (ctx, state) {
             final id = int.parse(state.pathParameters['id']!);
             return MatchDetailScreen(matchId: id);
+          },
+        ),
+        GoRoute(
+          path: '/match/:id/biddings',
+          builder: (ctx, state) {
+            final id = int.parse(state.pathParameters['id']!);
+            return MatchBiddingsScreen(matchId: id);
           },
         ),
       ],
@@ -175,10 +183,10 @@ class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.child});
 
   static const _tabs = [
-    _Tab('/home',        Icons.sports_cricket,        'Matches'),
-    _Tab('/my-polls',    Icons.how_to_vote,            'My Polls'),
-    _Tab('/wallet',      Icons.account_balance_wallet, 'Wallet'),
-    _Tab('/profile',     Icons.person,                 'Profile'),
+    _Tab('/home',        Icons.home_rounded,           'Home'),
+    _Tab('/my-polls',    Icons.poll_rounded,            'My Polls'),
+    _Tab('/wallet',      Icons.wallet_rounded,          'Wallet'),
+    _Tab('/profile',     Icons.person_rounded,          'Profile'),
   ];
 
   @override

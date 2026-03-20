@@ -84,6 +84,12 @@ final myPollsProvider = FutureProvider<List<PollModel>>((ref) async {
   return (data['polls'] as List).map((j) => PollModel.fromJson(j)).toList();
 });
 
+final matchPollsProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>, int>((ref, matchId) async {
+  final api = ref.read(apiServiceProvider);
+  return api.getMatchPolls(matchId);
+});
+
 // ─── Wallet ──────────────────────────────────────────────────
 
 final walletBalanceProvider = FutureProvider<Map<String, dynamic>>((ref) async {
@@ -113,6 +119,12 @@ final profileProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 final leaderboardProvider = FutureProvider<List<LeaderboardEntry>>((ref) async {
   final api = ref.read(apiServiceProvider);
   final data = await api.getLeaderboard();
+  return data.map((j) => LeaderboardEntry.fromJson(j)).toList();
+});
+
+final winsLeaderboardProvider = FutureProvider<List<LeaderboardEntry>>((ref) async {
+  final api = ref.read(apiServiceProvider);
+  final data = await api.getWinsLeaderboard();
   return data.map((j) => LeaderboardEntry.fromJson(j)).toList();
 });
 

@@ -192,6 +192,8 @@ class PollMatchInfo {
   final int matchNumber;
   final String teamAShort;
   final String teamBShort;
+  final String? teamALogo;
+  final String? teamBLogo;
   final DateTime matchDate;
   final String status;
   final String? winningTeam;
@@ -200,6 +202,8 @@ class PollMatchInfo {
     required this.matchNumber,
     required this.teamAShort,
     required this.teamBShort,
+    this.teamALogo,
+    this.teamBLogo,
     required this.matchDate,
     required this.status,
     this.winningTeam,
@@ -209,6 +213,8 @@ class PollMatchInfo {
         matchNumber: json['match_number'],
         teamAShort:  json['team_a_short'],
         teamBShort:  json['team_b_short'],
+        teamALogo:   json['team_a_logo'],
+        teamBLogo:   json['team_b_logo'],
         matchDate:   DateTime.parse(json['match_date']),
         status:      json['status'],
         winningTeam: json['winning_team'],
@@ -256,13 +262,15 @@ class LeaderboardEntry {
   final String name;
   final String mobileMasked;
   final int coinBalance;
+  final int totalWins;
 
   const LeaderboardEntry({
     required this.rank,
     required this.id,
     required this.name,
     required this.mobileMasked,
-    required this.coinBalance,
+    this.coinBalance = 0,
+    this.totalWins = 0,
   });
 
   factory LeaderboardEntry.fromJson(Map<String, dynamic> json) => LeaderboardEntry(
@@ -270,6 +278,7 @@ class LeaderboardEntry {
         id:           json['id'],
         name:         json['name'],
         mobileMasked: json['mobile_masked'],
-        coinBalance:  json['coin_balance'],
+        coinBalance:  json['coin_balance'] ?? 0,
+        totalWins:    json['total_wins'] ?? 0,
       );
 }

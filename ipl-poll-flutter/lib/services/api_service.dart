@@ -127,8 +127,18 @@ class ApiService {
     return res.data;
   }
 
+  Future<Map<String, dynamic>> cancelPoll(int pollId) async {
+    final res = await _dio.delete('/polls/$pollId');
+    return res.data;
+  }
+
   Future<Map<String, dynamic>> getMyPolls({int page = 1}) async {
     final res = await _dio.get('/polls/my', queryParameters: {'page': page});
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> getMatchPolls(int matchId) async {
+    final res = await _dio.get('/matches/$matchId/polls');
     return res.data;
   }
 
@@ -152,12 +162,26 @@ class ApiService {
     return res.data['leaderboard'];
   }
 
+  Future<List<dynamic>> getWinsLeaderboard() async {
+    final res = await _dio.get('/leaderboard/wins');
+    return res.data['leaderboard'];
+  }
+
   Future<Map<String, dynamic>> getMyRank() async {
     final res = await _dio.get('/leaderboard/my-rank');
     return res.data;
   }
 
   // ─── Error helper ────────────────────────────────────────────
+
+  static String humanError(Object e) {
+    if (e is DioException) {
+      return e.message ?? 'Something went wrong. Please try again.';
+    }
+    final s = e.toString();
+    if (s.startsWith('Exception: ')) return s.substring(11);
+    return s;
+  }
 
   String _extractError(DioException e) {
     if (e.response != null) {
