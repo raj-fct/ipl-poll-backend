@@ -62,6 +62,11 @@ class IplMatch extends Model
         return in_array($this->status, ['live', 'completed', 'cancelled']);
     }
 
+    public function isPollsClosed(): bool
+    {
+        return $this->isLocked() || now()->gte($this->match_date->subMinutes(30));
+    }
+
     public function getTeams(): array
     {
         return [$this->team_a_short, $this->team_b_short];
