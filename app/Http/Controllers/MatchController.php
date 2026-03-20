@@ -39,6 +39,23 @@ class MatchController extends Controller
         ]);
     }
 
+    public function polls(IplMatch $match): JsonResponse
+    {
+        $polls = $match->polls()
+            ->with('user:id,name')
+            ->latest()
+            ->get()
+            ->map(fn ($poll) => [
+                'user_name'     => $poll->user->name ?? 'User',
+                'selected_team' => $poll->selected_team,
+                'bid_amount'    => $poll->bid_amount,
+                'status'        => $poll->status,
+                'coins_earned'  => $poll->coins_earned,
+            ]);
+
+        return response()->json(['polls' => $polls]);
+    }
+
     private function matchResource(IplMatch $match): array
     {
         $userPoll = $match->polls->first();

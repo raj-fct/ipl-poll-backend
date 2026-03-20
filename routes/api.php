@@ -24,7 +24,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Matches
     Route::get('/matches',          [MatchController::class, 'index']);
-    Route::get('/matches/{match}',  [MatchController::class, 'show']);
+    Route::get('/matches/{match}',        [MatchController::class, 'show']);
+    Route::get('/matches/{match}/polls',  [MatchController::class, 'polls']);
 
     // Polls
     Route::post('/polls',         [PollController::class, 'store']);
