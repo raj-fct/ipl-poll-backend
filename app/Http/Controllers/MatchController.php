@@ -41,6 +41,10 @@ class MatchController extends Controller
 
     public function polls(IplMatch $match): JsonResponse
     {
+        if (! $match->isPollsClosed()) {
+            return response()->json(['message' => 'Predictions will be visible after polls close.'], 422);
+        }
+
         $polls = $match->polls()
             ->where('status', '!=', 'refunded')
             ->with('user:id,name')
