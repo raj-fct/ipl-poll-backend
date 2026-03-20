@@ -2084,12 +2084,17 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
 class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
+  int _currentTab = 0;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() => setState(() {}));
+    _tabController.addListener(() {
+      if (_currentTab != _tabController.index) {
+        setState(() => _currentTab = _tabController.index);
+      }
+    });
   }
 
   @override
@@ -2100,13 +2105,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final rankAsync    = ref.watch(myRankProvider);
-    final currentUser  = ref.watch(authProvider);
-    final isCoinsTab   = _tabController.index == 0;
-
-    final boardAsync = isCoinsTab
-        ? ref.watch(leaderboardProvider)
-        : ref.watch(winsLeaderboardProvider);
+    final rankAsync        = ref.watch(myRankProvider);
+    final currentUser      = ref.watch(authProvider);
+    final coinsBoardAsync  = ref.watch(leaderboardProvider);
+    final winsBoardAsync   = ref.watch(winsLeaderboardProvider);
+    final isCoinsTab       = _currentTab == 0;
+    final boardAsync       = isCoinsTab ? coinsBoardAsync : winsBoardAsync;
 
     return Scaffold(
       appBar: AppBar(
