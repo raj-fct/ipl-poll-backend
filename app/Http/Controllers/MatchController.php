@@ -53,7 +53,13 @@ class MatchController extends Controller
                 'coins_earned'  => $poll->coins_earned,
             ]);
 
-        return response()->json(['polls' => $polls]);
+        return response()->json([
+            'polls' => $polls,
+            'match' => [
+                'team_a_logo' => $match->team_a_logo,
+                'team_b_logo' => $match->team_b_logo,
+            ],
+        ]);
     }
 
     private function matchResource(IplMatch $match): array
