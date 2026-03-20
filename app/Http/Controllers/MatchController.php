@@ -25,8 +25,8 @@ class MatchController extends Controller
         $userId = $request->user()->id;
         $match->load(['polls' => fn ($q) => $q->where('user_id', $userId)]);
 
-        $total      = $match->polls()->count();
-        $teamACount = $match->polls()->where('selected_team', $match->team_a_short)->count();
+        $total      = $match->polls()->where('status', '!=', 'refunded')->count();
+        $teamACount = $match->polls()->where('status', '!=', 'refunded')->where('selected_team', $match->team_a_short)->count();
 
         return response()->json([
             'match' => $this->matchResource($match),
@@ -42,15 +42,13 @@ class MatchController extends Controller
     public function polls(IplMatch $match): JsonResponse
     {
         $polls = $match->polls()
+            ->where('status', '!=', 'refunded')
             ->with('user:id,name')
             ->latest()
             ->get()
             ->map(fn ($poll) => [
                 'user_name'     => $poll->user->name ?? 'User',
-                'selected_team' => $poll->selected_team,
-                'bid_amount'    => $poll->bid_amount,
                 'status'        => $poll->status,
-                'coins_earned'  => $poll->coins_earned,
             ]);
 
         return response()->json([
