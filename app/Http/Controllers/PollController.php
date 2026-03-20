@@ -142,6 +142,8 @@ class PollController extends Controller
                 'match_number' => $poll->match->match_number,
                 'team_a_short' => $poll->match->team_a_short,
                 'team_b_short' => $poll->match->team_b_short,
+                'team_a_logo'  => $poll->match->team_a_logo,
+                'team_b_logo'  => $poll->match->team_b_logo,
                 'match_date'   => $poll->match->match_date->toIso8601String(),
                 'status'       => $poll->match->status,
                 'winning_team' => $poll->match->winning_team,
