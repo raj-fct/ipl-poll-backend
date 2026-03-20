@@ -22,8 +22,8 @@ class PollController extends Controller
         $match = IplMatch::findOrFail($data['match_id']);
         $user  = $request->user();
 
-        if ($match->isLocked()) {
-            return response()->json(['message' => 'Polls are locked for this match.'], 422);
+        if ($match->isPollsClosed()) {
+            return response()->json(['message' => 'Time up! Polls close 30 minutes before the match.'], 422);
         }
 
         if (! in_array($data['selected_team'], $match->getTeams())) {
@@ -82,8 +82,8 @@ class PollController extends Controller
         $match = $poll->match;
         $user  = $request->user();
 
-        if ($match->isLocked()) {
-            return response()->json(['message' => 'Polls are locked for this match.'], 422);
+        if ($match->isPollsClosed()) {
+            return response()->json(['message' => 'Time up! Polls close 30 minutes before the match.'], 422);
         }
 
         if (! in_array($data['selected_team'], $match->getTeams())) {
@@ -112,6 +112,38 @@ class PollController extends Controller
         return response()->json([
             'poll'    => $this->pollResource($poll->fresh()),
             'message' => 'Poll updated.',
+        ]);
+    }
+
+    public function destroy(Request $request, Poll $poll): JsonResponse
+    {
+        $this->authorize('delete', $poll);
+
+        $match = $poll->match;
+        $user  = $request->user();
+
+        if ($match->isPollsClosed()) {
+            return response()->json(['message' => 'Time up! Polls close 30 minutes before the match.'], 422);
+        }
+
+        if ($poll->status !== 'pending') {
+            return response()->json(['message' => 'Only pending polls can be cancelled.'], 422);
+        }
+
+        DB::transaction(function () use ($poll, $user) {
+            $user->creditCoins(
+                $poll->bid_amount,
+                'refund',
+                "Poll cancelled – Match #{$poll->match->match_number}: {$poll->match->team_a_short} vs {$poll->match->team_b_short}",
+                $poll
+            );
+
+            $poll->update(['status' => 'refunded']);
+        });
+
+        return response()->json([
+            'poll'    => $this->pollResource($poll->fresh()),
+            'message' => 'Poll cancelled and coins refunded.',
         ]);
     }
 

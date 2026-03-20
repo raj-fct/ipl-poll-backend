@@ -28,9 +28,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/matches/{match}/polls',  [MatchController::class, 'polls']);
 
     // Polls
-    Route::post('/polls',         [PollController::class, 'store']);
-    Route::put('/polls/{poll}',   [PollController::class, 'update']);
-    Route::get('/polls/my',       [PollController::class, 'myPolls']);
+    Route::post('/polls',            [PollController::class, 'store']);
+    Route::put('/polls/{poll}',      [PollController::class, 'update']);
+    Route::delete('/polls/{poll}',   [PollController::class, 'destroy']);
+    Route::get('/polls/my',          [PollController::class, 'myPolls']);
 
     // Wallet
     Route::get('/wallet/balance',       [WalletController::class, 'balance']);
