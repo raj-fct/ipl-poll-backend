@@ -30,7 +30,9 @@ class PollController extends Controller
             return response()->json(['message' => 'Invalid team selection.'], 422);
         }
 
-        if (Poll::where('user_id', $user->id)->where('match_id', $match->id)->exists()) {
+        $existingPoll = Poll::where('user_id', $user->id)->where('match_id', $match->id)->first();
+
+        if ($existingPoll && $existingPoll->status !== 'refunded') {
             return response()->json(['message' => 'You already have a poll for this match. Use the update endpoint.'], 422);
         }
 
@@ -45,14 +47,24 @@ class PollController extends Controller
             return response()->json(['message' => 'Insufficient coin balance.'], 422);
         }
 
-        $poll = DB::transaction(function () use ($user, $match, $data) {
-            $poll = Poll::create([
-                'user_id'       => $user->id,
-                'match_id'      => $match->id,
-                'selected_team' => $data['selected_team'],
-                'bid_amount'    => $data['bid_amount'],
-                'status'        => 'pending',
-            ]);
+        $poll = DB::transaction(function () use ($user, $match, $data, $existingPoll) {
+            if ($existingPoll) {
+                $existingPoll->update([
+                    'selected_team' => $data['selected_team'],
+                    'bid_amount'    => $data['bid_amount'],
+                    'status'        => 'pending',
+                    'coins_earned'  => 0,
+                ]);
+                $poll = $existingPoll;
+            } else {
+                $poll = Poll::create([
+                    'user_id'       => $user->id,
+                    'match_id'      => $match->id,
+                    'selected_team' => $data['selected_team'],
+                    'bid_amount'    => $data['bid_amount'],
+                    'status'        => 'pending',
+                ]);
+            }
 
             $user->debitCoins(
                 $data['bid_amount'],
