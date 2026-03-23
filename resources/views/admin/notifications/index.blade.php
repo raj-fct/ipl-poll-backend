@@ -66,6 +66,90 @@
     </div>
 </div>
 
+{{-- Custom Scheduled Notifications --}}
+<div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-clock-history"></i> Custom Scheduled Notifications
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Match</th>
+                        <th>Scheduled For</th>
+                        <th>Status</th>
+                        <th>Result</th>
+                        <th>Created By</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($scheduledNotifications as $sn)
+                        <tr>
+                            <td>
+                                <div class="fw-semibold" style="font-size:0.85rem;">{{ Str::limit($sn->title, 40) }}</div>
+                                <div class="text-muted" style="font-size:0.75rem;">{{ Str::limit($sn->body, 60) }}</div>
+                            </td>
+                            <td>
+                                @if($sn->match)
+                                    <span class="small">#{{ $sn->match->match_number }} {{ $sn->match->team_a_short }} vs {{ $sn->match->team_b_short }}</span>
+                                @else
+                                    <span class="text-muted small">—</span>
+                                @endif
+                            </td>
+                            <td class="small">{{ $sn->scheduled_at->format('d M Y, g:i A') }}</td>
+                            <td>
+                                @if($sn->status === 'pending')
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                @elseif($sn->status === 'sent')
+                                    <span class="badge bg-success">Sent</span>
+                                @else
+                                    <span class="badge bg-danger">Failed</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($sn->status === 'sent')
+                                    <span class="text-success small">{{ $sn->success_count }}</span>
+                                    <span class="text-muted small">/</span>
+                                    <span class="text-danger small">{{ $sn->failure_count }}</span>
+                                @elseif($sn->status === 'pending')
+                                    <span class="text-muted small">—</span>
+                                @else
+                                    <span class="text-danger small">Failed</span>
+                                @endif
+                            </td>
+                            <td class="small text-muted">{{ $sn->creator->name ?? '-' }}</td>
+                            <td>
+                                @if($sn->status === 'pending')
+                                    <form action="{{ route('admin.notifications.cancel', $sn) }}" method="POST"
+                                          onsubmit="return confirm('Cancel this scheduled notification?')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" style="font-size:0.75rem;">
+                                            <i class="bi bi-x-lg"></i> Cancel
+                                        </button>
+                                    </form>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-3">No custom notifications yet</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        @if($scheduledNotifications->hasPages())
+            <div class="p-3">
+                {{ $scheduledNotifications->appends(['sent_page' => request('sent_page')])->links() }}
+            </div>
+        @endif
+    </div>
+</div>
+
 {{-- Sent Notifications Log --}}
 <div class="card">
     <div class="card-header d-flex align-items-center gap-2">

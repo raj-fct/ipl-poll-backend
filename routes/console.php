@@ -23,3 +23,8 @@ Schedule::command('ipl:send-match-notifications')
     ->everyMinute()
     ->between('08:30', '23:59')
     ->appendOutputTo(storage_path('logs/match-notifications.log'));
+
+// Send custom scheduled notifications
+Schedule::command('ipl:send-scheduled-notifications')
+    ->everyMinute()
+    ->appendOutputTo(storage_path('logs/scheduled-notifications.log'));

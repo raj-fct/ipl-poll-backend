@@ -60,6 +60,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/notifications', [NotificationWebController::class, 'index'])->name('notifications.index');
     Route::get('/notifications/create', [NotificationWebController::class, 'create'])->name('notifications.create');
     Route::post('/notifications/send', [NotificationWebController::class, 'send'])->name('notifications.send');
+    Route::delete('/notifications/{notification}/cancel', [NotificationWebController::class, 'cancel'])->name('notifications.cancel');
 
     // Settings
     Route::get('/settings', [SettingWebController::class, 'index'])->name('settings.index');

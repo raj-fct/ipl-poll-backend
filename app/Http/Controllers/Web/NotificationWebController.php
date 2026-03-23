@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\IplMatch;
 use App\Models\MatchNotification;
+use App\Models\ScheduledNotification;
 use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -13,7 +14,7 @@ class NotificationWebController extends Controller
 {
     public function index()
     {
-        // Scheduled notifications (sent)
+        // Sent notifications (match auto + custom)
         $sentNotifications = MatchNotification::with('match')
             ->orderByDesc('sent_at')
             ->paginate(20, ['*'], 'sent_page');
@@ -49,7 +50,7 @@ class NotificationWebController extends Controller
                     [
                         'type'      => '30min_before',
                         'label'     => '30min Before Poll Close',
-                        'scheduled' => $pollCloseTime,
+                        'scheduled' => $pollCloseTime->copy()->subMinutes(30),
                         'sent'      => in_array('30min_before', $sent),
                     ],
                 ];
@@ -57,7 +58,14 @@ class NotificationWebController extends Controller
                 return $match;
             });
 
-        return view('admin.notifications.index', compact('sentNotifications', 'upcomingMatches'));
+        // Custom scheduled notifications
+        $scheduledNotifications = ScheduledNotification::with(['match', 'creator'])
+            ->orderByDesc('scheduled_at')
+            ->paginate(20, ['*'], 'scheduled_page');
+
+        return view('admin.notifications.index', compact(
+            'sentNotifications', 'upcomingMatches', 'scheduledNotifications'
+        ));
     }
 
     public function create()
@@ -73,12 +81,12 @@ class NotificationWebController extends Controller
     public function send(Request $request)
     {
         $data = $request->validate([
-            'title'    => 'required|string|max:200',
-            'body'     => 'required|string|max:500',
-            'match_id' => 'nullable|exists:matches,id',
+            'title'        => 'required|string|max:200',
+            'body'         => 'required|string|max:500',
+            'match_id'     => 'nullable|exists:matches,id',
+            'send_type'    => 'required|in:now,scheduled',
+            'scheduled_at' => 'required_if:send_type,scheduled|nullable|date|after:now',
         ]);
-
-        $notificationService = app(NotificationService::class);
 
         $extraData = [];
         if (! empty($data['match_id'])) {
@@ -89,9 +97,37 @@ class NotificationWebController extends Controller
             ];
         }
 
+        // Schedule for later
+        if ($data['send_type'] === 'scheduled') {
+            ScheduledNotification::create([
+                'title'        => $data['title'],
+                'body'         => $data['body'],
+                'match_id'     => $data['match_id'] ?? null,
+                'scheduled_at' => Carbon::parse($data['scheduled_at']),
+                'created_by'   => auth()->id(),
+            ]);
+
+            $time = Carbon::parse($data['scheduled_at'])->format('d M Y, g:i A');
+            return redirect()->route('admin.notifications.index')
+                ->with('success', "Notification scheduled for {$time}.");
+        }
+
+        // Send immediately
+        $notificationService = app(NotificationService::class);
         $result = $notificationService->sendToAll($data['title'], $data['body'], $extraData);
 
         return redirect()->route('admin.notifications.index')
             ->with('success', "Notification sent! Success: {$result['success']}, Failed: {$result['failure']}");
+    }
+
+    public function cancel(ScheduledNotification $notification)
+    {
+        if ($notification->status !== 'pending') {
+            return back()->with('error', 'Only pending notifications can be cancelled.');
+        }
+
+        $notification->delete();
+
+        return back()->with('success', 'Scheduled notification cancelled.');
     }
 }

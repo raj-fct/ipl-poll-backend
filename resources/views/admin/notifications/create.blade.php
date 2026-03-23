@@ -13,7 +13,7 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-body">
-                <form action="{{ route('admin.notifications.send') }}" method="POST">
+                <form action="{{ route('admin.notifications.send') }}" method="POST" id="notifForm">
                     @csrf
 
                     <div class="mb-3">
@@ -44,8 +44,37 @@
 
                     <hr>
 
+                    {{-- Send Type --}}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">When to Send</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="send_type" id="sendNow"
+                                       value="now" {{ old('send_type', 'now') === 'now' ? 'checked' : '' }}>
+                                <label class="form-check-label" for="sendNow">
+                                    <i class="bi bi-send"></i> Send Now
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="send_type" id="sendScheduled"
+                                       value="scheduled" {{ old('send_type') === 'scheduled' ? 'checked' : '' }}>
+                                <label class="form-check-label" for="sendScheduled">
+                                    <i class="bi bi-clock"></i> Schedule for Later
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Schedule Date/Time --}}
+                    <div class="mb-3" id="scheduleField" style="display: none;">
+                        <label class="form-label fw-semibold">Scheduled Date & Time <span class="text-danger">*</span></label>
+                        <input type="datetime-local" name="scheduled_at" class="form-control"
+                               value="{{ old('scheduled_at') }}" min="{{ now()->format('Y-m-d\TH:i') }}">
+                        <div class="form-text">Notification will be sent automatically at this time.</div>
+                    </div>
+
                     <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-danger" onclick="return confirm('Send this notification to ALL users?')">
+                        <button type="submit" class="btn btn-danger" id="submitBtn">
                             <i class="bi bi-send"></i> Send to All Users
                         </button>
                         <a href="{{ route('admin.notifications.index') }}" class="btn btn-outline-secondary">Cancel</a>
@@ -69,7 +98,7 @@
                         <div>
                             <div class="fw-bold" style="font-size:0.85rem;" id="preview-title">Notification Title</div>
                             <div class="text-muted" style="font-size:0.8rem;" id="preview-body">Notification message will appear here...</div>
-                            <div class="text-muted mt-1" style="font-size:0.7rem;">IPL Poll &middot; just now</div>
+                            <div class="text-muted mt-1" style="font-size:0.7rem;">IPL Poll &middot; <span id="preview-time">just now</span></div>
                         </div>
                     </div>
                 </div>
@@ -84,11 +113,49 @@
 
 @push('scripts')
 <script>
+    const sendNow = document.getElementById('sendNow');
+    const sendScheduled = document.getElementById('sendScheduled');
+    const scheduleField = document.getElementById('scheduleField');
+    const submitBtn = document.getElementById('submitBtn');
+    const scheduledInput = document.querySelector('input[name="scheduled_at"]');
+    const previewTime = document.getElementById('preview-time');
+
+    function toggleSchedule() {
+        const isScheduled = sendScheduled.checked;
+        scheduleField.style.display = isScheduled ? 'block' : 'none';
+        scheduledInput.required = isScheduled;
+
+        if (isScheduled) {
+            submitBtn.innerHTML = '<i class="bi bi-clock"></i> Schedule Notification';
+            submitBtn.classList.replace('btn-danger', 'btn-primary');
+            submitBtn.onclick = function() { return confirm('Schedule this notification?'); };
+        } else {
+            submitBtn.innerHTML = '<i class="bi bi-send"></i> Send to All Users';
+            submitBtn.classList.replace('btn-primary', 'btn-danger');
+            submitBtn.onclick = function() { return confirm('Send this notification to ALL users right now?'); };
+        }
+    }
+
+    sendNow.addEventListener('change', toggleSchedule);
+    sendScheduled.addEventListener('change', toggleSchedule);
+
+    // Initialize on page load
+    toggleSchedule();
+
+    // Preview updates
     document.querySelector('input[name="title"]').addEventListener('input', function() {
         document.getElementById('preview-title').textContent = this.value || 'Notification Title';
     });
     document.querySelector('textarea[name="body"]').addEventListener('input', function() {
         document.getElementById('preview-body').textContent = this.value || 'Notification message will appear here...';
+    });
+    scheduledInput.addEventListener('input', function() {
+        if (this.value) {
+            const d = new Date(this.value);
+            previewTime.textContent = d.toLocaleString('en-IN', { day:'numeric', month:'short', hour:'numeric', minute:'2-digit', hour12:true });
+        } else {
+            previewTime.textContent = 'just now';
+        }
     });
 </script>
 @endpush
