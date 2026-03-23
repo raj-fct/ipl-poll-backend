@@ -118,6 +118,20 @@ class AuthController extends Controller
     }
 
     /**
+     * Store or update FCM token for the authenticated user.
+     */
+    public function updateFcmToken(Request $request): JsonResponse
+    {
+        $request->validate([
+            'fcm_token' => 'required|string',
+        ]);
+
+        $request->user()->update(['fcm_token' => $request->fcm_token]);
+
+        return response()->json(['message' => 'FCM token updated successfully.']);
+    }
+
+    /**
      * Logout: revoke current token only.
      */
     public function logout(Request $request): JsonResponse

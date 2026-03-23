@@ -1,6 +1,7 @@
 // lib/services/notification_service.dart
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'api_service.dart';
@@ -42,6 +43,7 @@ class NotificationService {
 
     // Get and register FCM token
     final token = await _messaging.getToken();
+    debugPrint('FCM Token: $token');
     if (token != null) {
       await _registerToken(token);
     }
@@ -92,8 +94,9 @@ class NotificationService {
   static Future<void> _registerToken(String token) async {
     try {
       await _api?.registerFcmToken(token);
-    } catch (_) {
-      // Silently fail – token will be retried on next refresh
+      debugPrint('FCM token registered with backend');
+    } catch (e) {
+      debugPrint('FCM token registration failed: $e');
     }
   }
 
