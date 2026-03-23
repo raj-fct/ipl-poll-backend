@@ -31,11 +31,12 @@ class LeaderboardController extends Controller
 
     public function wins(): JsonResponse
     {
-        $leaders = User::select('users.id', 'users.name', 'users.mobile', DB::raw('COUNT(polls.id) as total_wins'))
-            ->leftJoin('polls', function ($join) {
-                $join->on('users.id', '=', 'polls.user_id')
-                     ->where('polls.status', '=', 'won');
-            })
+        $leaders = User::select(
+                'users.id', 'users.name', 'users.mobile',
+                DB::raw('COUNT(CASE WHEN polls.status = \'won\' THEN 1 END) as total_wins'),
+                DB::raw('COUNT(polls.id) as total_polls')
+            )
+            ->leftJoin('polls', 'users.id', '=', 'polls.user_id')
             ->where('users.is_admin', false)
             ->where('users.is_active', true)
             ->groupBy('users.id', 'users.name', 'users.mobile')
@@ -49,6 +50,8 @@ class LeaderboardController extends Controller
                 'name'          => $u->name,
                 'mobile_masked' => substr($u->mobile, 0, 3) . '****' . substr($u->mobile, -3),
                 'total_wins'    => (int) $u->total_wins,
+                'total_polls'   => (int) $u->total_polls,
+                'win_rate'      => $u->total_polls > 0 ? round((int) $u->total_wins / (int) $u->total_polls * 100, 1) : 0,
             ]);
 
         return response()->json(['leaderboard' => $leaders]);

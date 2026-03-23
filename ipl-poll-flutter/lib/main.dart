@@ -14,7 +14,7 @@ import 'screens/change_password_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/match_detail_screen.dart';
 import 'screens/match_biddings_screen.dart';
-import 'screens/my_polls_screen.dart';
+import 'screens/leaderboard_screen.dart';
 import 'screens/wallet_screen.dart';
 import 'screens/profile_screen.dart';
 
@@ -26,63 +26,64 @@ void main() async {
   runApp(const ProviderScope(child: IPLPollApp()));
 }
 
-class IPLPollApp extends ConsumerWidget {
+final _appRouter = GoRouter(
+  initialLocation: '/splash',
+  routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (_, __) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/login',
+      builder: (_, __) => const LoginScreen(),
+    ),
+    GoRoute(
+      path: '/change-password',
+      builder: (ctx, state) {
+        final isForced = state.extra as bool? ?? false;
+        return ChangePasswordScreen(isForced: isForced);
+      },
+    ),
+    ShellRoute(
+      builder: (ctx, state, child) => MainShell(child: child),
+      routes: [
+        GoRoute(path: '/home',         builder: (_, __) => const HomeScreen()),
+        GoRoute(path: '/leaderboard', builder: (_, __) => const LeaderboardScreen()),
+        GoRoute(path: '/wallet',      builder: (_, __) => const WalletScreen()),
+        GoRoute(path: '/profile',     builder: (_, __) => const ProfileScreen()),
+      ],
+    ),
+    GoRoute(
+      path: '/match/:id',
+      builder: (ctx, state) {
+        final id = int.parse(state.pathParameters['id']!);
+        return MatchDetailScreen(matchId: id);
+      },
+    ),
+    GoRoute(
+      path: '/match/:id/biddings',
+      builder: (ctx, state) {
+        final id = int.parse(state.pathParameters['id']!);
+        return MatchBiddingsScreen(matchId: id);
+      },
+    ),
+  ],
+);
+
+class IPLPollApp extends StatelessWidget {
   const IPLPollApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return MaterialApp.router(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.iplTheme(),
-      routerConfig: _router(ref),
+      routerConfig: _appRouter,
     );
   }
 }
 
-GoRouter _router(WidgetRef ref) => GoRouter(
-      initialLocation: '/splash',
-      routes: [
-        GoRoute(
-          path: '/splash',
-          builder: (_, __) => const SplashScreen(),
-        ),
-        GoRoute(
-          path: '/login',
-          builder: (_, __) => const LoginScreen(),
-        ),
-        GoRoute(
-          path: '/change-password',
-          builder: (ctx, state) {
-            final isForced = state.extra as bool? ?? false;
-            return ChangePasswordScreen(isForced: isForced);
-          },
-        ),
-        ShellRoute(
-          builder: (ctx, state, child) => MainShell(child: child),
-          routes: [
-            GoRoute(path: '/home',        builder: (_, __) => const HomeScreen()),
-            GoRoute(path: '/my-polls',    builder: (_, __) => const MyPollsScreen()),
-            GoRoute(path: '/wallet',      builder: (_, __) => const WalletScreen()),
-            GoRoute(path: '/profile',     builder: (_, __) => const ProfileScreen()),
-          ],
-        ),
-        GoRoute(
-          path: '/match/:id',
-          builder: (ctx, state) {
-            final id = int.parse(state.pathParameters['id']!);
-            return MatchDetailScreen(matchId: id);
-          },
-        ),
-        GoRoute(
-          path: '/match/:id/biddings',
-          builder: (ctx, state) {
-            final id = int.parse(state.pathParameters['id']!);
-            return MatchBiddingsScreen(matchId: id);
-          },
-        ),
-      ],
-    );
 
 // ─── IPL Color Palette ────────────────────────────────────────
 
@@ -192,8 +193,8 @@ class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.child});
 
   static const _tabs = [
-    _Tab('/home',        Icons.home_rounded,           'Home'),
-    _Tab('/my-polls',    Icons.poll_rounded,            'My Polls'),
+    _Tab('/home',         Icons.home_rounded,            'Home'),
+    _Tab('/leaderboard', Icons.leaderboard_rounded,     'Leaderboard'),
     _Tab('/wallet',      Icons.wallet_rounded,          'Wallet'),
     _Tab('/profile',     Icons.person_rounded,          'Profile'),
   ];

@@ -263,6 +263,8 @@ class LeaderboardEntry {
   final String mobileMasked;
   final int coinBalance;
   final int totalWins;
+  final int totalPolls;
+  final double winRate;
 
   const LeaderboardEntry({
     required this.rank,
@@ -271,6 +273,8 @@ class LeaderboardEntry {
     required this.mobileMasked,
     this.coinBalance = 0,
     this.totalWins = 0,
+    this.totalPolls = 0,
+    this.winRate = 0,
   });
 
   factory LeaderboardEntry.fromJson(Map<String, dynamic> json) => LeaderboardEntry(
@@ -280,5 +284,7 @@ class LeaderboardEntry {
         mobileMasked: json['mobile_masked'],
         coinBalance:  json['coin_balance'] ?? 0,
         totalWins:    json['total_wins'] ?? 0,
+        totalPolls:   json['total_polls'] ?? 0,
+        winRate:      (json['win_rate'] ?? 0).toDouble(),
       );
 }

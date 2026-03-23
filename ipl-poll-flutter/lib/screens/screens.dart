@@ -79,7 +79,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
             child: _PillTabBar(
               controller: _tabController,
-              labels: const ['FIXTURES', 'RESULTS', 'LEADERBOARD'],
+              labels: const ['FIXTURES', 'RESULTS', 'MY POLLS'],
+              icons: const [Icons.event_rounded, Icons.emoji_events_rounded, Icons.poll_rounded],
             ),
           ),
         ),
@@ -91,7 +92,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           children: [
             _FixturesTab(matchesAsync: matchesAsync, ref: ref),
             _ResultsTab(matchesAsync: matchesAsync, ref: ref),
-            const _LeaderboardTab(),
+            const _MyPollsTab(),
           ],
         ),
       ),
@@ -102,7 +103,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 class _PillTabBar extends StatelessWidget {
   final TabController controller;
   final List<String> labels;
-  const _PillTabBar({required this.controller, required this.labels});
+  final List<IconData>? icons;
+  final List<Widget>? customIcons;
+  const _PillTabBar({required this.controller, required this.labels, this.icons, this.customIcons});
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +121,7 @@ class _PillTabBar extends StatelessWidget {
           child: Row(
             children: List.generate(labels.length, (i) {
               final selected = controller.index == i;
+              final color = selected ? Colors.white : IPLColors.textMuted;
               return Expanded(
                 child: GestureDetector(
                   onTap: () => controller.animateTo(i),
@@ -128,13 +132,25 @@ class _PillTabBar extends StatelessWidget {
                       color: selected ? IPLColors.accent : Colors.transparent,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(labels[i],
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                          color: selected ? Colors.white : IPLColors.textMuted,
-                        )),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (customIcons != null) ...[
+                          customIcons![i],
+                          const SizedBox(width: 4),
+                        ] else if (icons != null) ...[
+                          Icon(icons![i], size: 14, color: color),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(labels[i],
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                              color: color,
+                            )),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -362,6 +378,45 @@ class _LeaderRowInline extends StatelessWidget {
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         ]),
       ]),
+    );
+  }
+}
+
+// ─── My Polls Tab (inline in Home) ───────────────────────────
+
+class _MyPollsTab extends ConsumerWidget {
+  const _MyPollsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pollsAsync = ref.watch(myPollsProvider);
+
+    return RefreshIndicator(
+      color: IPLColors.accent,
+      onRefresh: () => ref.refresh(myPollsProvider.future),
+      child: pollsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text(ApiService.humanError(e))),
+        data: (polls) {
+          if (polls.isEmpty) {
+            return ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(child: Text('No predictions yet. Place your first one!',
+                    style: TextStyle(color: IPLColors.textMuted))),
+              ],
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(14),
+            itemCount: polls.length,
+            itemBuilder: (ctx, i) => GestureDetector(
+              onTap: () => context.push('/match/${polls[i].matchId}'),
+              child: _PollTile(poll: polls[i]),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -2117,16 +2172,21 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Leaderboard'),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: IPLColors.accent,
-          labelColor: IPLColors.accent,
-          unselectedLabelColor: IPLColors.textMuted,
-          tabs: const [
-            Tab(text: 'Coins'),
-            Tab(text: 'Wins'),
-          ],
+        title: const Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.leaderboard_rounded, size: 22, color: IPLColors.accent),
+          SizedBox(width: 8),
+          Text('Leaderboard'),
+        ]),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+            child: _PillTabBar(
+              controller: _tabController,
+              labels: const ['COINS', 'WINS'],
+              customIcons: const [CoinIcon(size: 14), Icon(Icons.emoji_events_rounded, size: 14)],
+            ),
+          ),
         ),
       ),
       body: RefreshIndicator(
@@ -2244,11 +2304,16 @@ class _LeaderRow extends StatelessWidget {
               style: const TextStyle(color: IPLColors.textMuted, fontSize: 11)),
         ])),
         if (showWins)
-          Row(children: [
-            const Icon(Icons.emoji_events, color: Colors.amber, size: 14),
-            const SizedBox(width: 4),
-            Text('${entry.totalWins}',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.emoji_events, color: Colors.amber, size: 14),
+              const SizedBox(width: 4),
+              Text('${entry.totalWins}/${entry.totalPolls}',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 2),
+            Text('${entry.winRate}%',
+                style: const TextStyle(color: IPLColors.accent, fontSize: 11, fontWeight: FontWeight.w600)),
           ])
         else
           Row(children: [
