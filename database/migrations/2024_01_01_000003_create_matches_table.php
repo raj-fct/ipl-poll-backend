@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('season')->default('IPL 2025');
             $table->enum('status', ['upcoming', 'live', 'completed'])->default('upcoming');
             $table->string('winning_team')->nullable();
-            $table->decimal('win_multiplier', 4, 2)->default(1.90);
+            $table->decimal('win_multiplier', 4, 2)->default(2.00);
             $table->text('notes')->nullable();
             $table->timestamps();
         });

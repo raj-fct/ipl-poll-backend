@@ -72,9 +72,9 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Win Multiplier</label>
-                            <input type="number" name="win_multiplier" class="form-control" value="{{ old('win_multiplier', '1.90') }}"
+                            <input type="number" name="win_multiplier" class="form-control" value="{{ old('win_multiplier', '2.00') }}"
                                    step="0.01" min="1.0" max="10.0">
-                            <div class="form-text">Default: 1.90x</div>
+                            <div class="form-text">Default: 2.00x</div>
                         </div>
                         <div class="col-12">
                             <label class="form-label">Notes <small class="text-muted">(optional)</small></label>

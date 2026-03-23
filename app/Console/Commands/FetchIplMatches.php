@@ -166,7 +166,7 @@ class FetchIplMatches extends Command
                     'winning_team'   => $winningTeam,
                     'toss_winner'    => $tossWinner,
                     'toss_decision'  => $tossDecision,
-                    'win_multiplier' => 1.90,
+                    'win_multiplier' => 2.00,
                     'notes'          => $match['summary'],
                 ]);
 
