@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\PollWebController;
 use App\Http\Controllers\Web\SettingWebController;
 use App\Http\Controllers\Web\TeamWebController;
 use App\Http\Controllers\Web\TransactionWebController;
+use App\Http\Controllers\Web\NotificationWebController;
 
 // Admin Login
 Route::get('/admin/login', [AuthWebController::class, 'showLogin'])->name('admin.login');
@@ -54,6 +55,11 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
 
     // Transactions
     Route::get('/transactions', [TransactionWebController::class, 'index'])->name('transactions.index');
+
+    // Notifications
+    Route::get('/notifications', [NotificationWebController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/create', [NotificationWebController::class, 'create'])->name('notifications.create');
+    Route::post('/notifications/send', [NotificationWebController::class, 'send'])->name('notifications.send');
 
     // Settings
     Route::get('/settings', [SettingWebController::class, 'index'])->name('settings.index');
