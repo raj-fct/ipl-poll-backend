@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\IplMatch;
+use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -36,6 +37,7 @@ class MatchController extends Controller
                 'team_b_polls'      => $total - $teamACount,
                 'team_a_percentage' => $total ? round($teamACount / $total * 100) : 0,
             ],
+            'max_bid_percent' => (int) Setting::get('max_bid_percent', 50),
         ]);
     }
 

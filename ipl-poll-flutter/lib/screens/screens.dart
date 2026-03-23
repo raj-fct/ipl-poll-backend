@@ -715,7 +715,9 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
               ? match.userPoll : null;
           // Add back current bid so user sees their full available balance
           final currentBid = activePoll?.bidAmount ?? 0;
-          final maxBid = ((user?.coinBalance ?? 100) + currentBid).toDouble().clamp(10.0, 99999.0);
+          final totalBalance = ((user?.coinBalance ?? 100) + currentBid).toDouble();
+          final maxBidPercent = (data['max_bid_percent'] as num?)?.toInt() ?? 50;
+          final maxBid = (totalBalance * maxBidPercent / 100).floorToDouble().clamp(10.0, 99999.0);
           if (!_initialized) {
             _initialized = true;
             _selectedTeam = activePoll?.selectedTeam;
@@ -1289,7 +1291,7 @@ class _BidSlider extends StatelessWidget {
           const Text('BID AMOUNT', style: TextStyle(
               color: IPLColors.textMuted, fontSize: 10,
               fontWeight: FontWeight.w600, letterSpacing: 1)),
-          Text('Balance: ${maxBid.toInt()}',
+          Text('Max bet: ${maxBid.toInt()}',
               style: const TextStyle(color: IPLColors.textMuted, fontSize: 11)),
         ]),
         const SizedBox(height: 12),
@@ -1562,7 +1564,7 @@ class _PredictionPanel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Text('10', style: TextStyle(color: IPLColors.textMuted, fontSize: 10)),
-            Text('Balance: ${maxBid.toInt()}',
+            Text('Max bet: ${maxBid.toInt()}',
                 style: const TextStyle(color: IPLColors.textMuted, fontSize: 10)),
           ]),
         ),

@@ -43,6 +43,13 @@ class PollController extends Controller
             return response()->json(['message' => "Bid must be between {$minBid} and {$maxBid} coins."], 422);
         }
 
+        $maxBidPercent = (int) Setting::get('max_bid_percent', 50);
+        $maxAllowed = (int) floor($user->coin_balance * $maxBidPercent / 100);
+        if ($data['bid_amount'] > $maxAllowed) {
+            $label = $maxBidPercent == 100 ? 'your full balance' : "{$maxBidPercent}% of your balance";
+            return response()->json(['message' => "You can bet up to {$label} ({$maxAllowed} coins)."], 422);
+        }
+
         if ($user->coin_balance < $data['bid_amount']) {
             return response()->json(['message' => 'Insufficient coin balance.'], 422);
         }
@@ -109,6 +116,12 @@ class PollController extends Controller
             if ($newBid !== $oldBid) {
                 $user->creditCoins($oldBid, 'refund', "Refund for poll update – Match #{$poll->match->match_number}");
                 $fresh = $user->fresh();
+                $maxBidPercent = (int) Setting::get('max_bid_percent', 50);
+                $maxAllowed = (int) floor($fresh->coin_balance * $maxBidPercent / 100);
+                if ($newBid > $maxAllowed) {
+                    $label = $maxBidPercent == 100 ? 'your full balance' : "{$maxBidPercent}% of your balance";
+                    throw new \Exception("You can bet up to {$label} ({$maxAllowed} coins).");
+                }
                 if ($fresh->coin_balance < $newBid) {
                     throw new \Exception('Insufficient balance for new bid amount.');
                 }

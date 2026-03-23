@@ -20,6 +20,7 @@ class SettingsAdminController extends Controller
             'bonus_coins' => 'nullable|integer|min:0',
             'min_bid'     => 'nullable|integer|min:1',
             'max_bid'     => 'nullable|integer|min:1',
+            'max_bid_percent' => 'nullable|integer|in:50,100',
             'season'      => 'nullable|string|max:50',
         ]);
 
