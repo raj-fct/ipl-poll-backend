@@ -11,6 +11,7 @@ import '../core/constants.dart';
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 import '../main.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -2445,6 +2446,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final result = await ref.read(authProvider.notifier).login(mobile, password);
       if (!mounted) return;
+
+      // Initialize push notifications after login
+      final api = ref.read(apiServiceProvider);
+      NotificationService.init(api);
+
       if (result.mustChangePassword) {
         context.go('/change-password', extra: true);
       } else {

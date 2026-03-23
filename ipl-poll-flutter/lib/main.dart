@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/constants.dart';
 import 'providers/providers.dart';
+import 'services/notification_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/change_password_screen.dart';
 import 'screens/home_screen.dart';
@@ -15,8 +18,10 @@ import 'screens/my_polls_screen.dart';
 import 'screens/wallet_screen.dart';
 import 'screens/profile_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   runApp(const ProviderScope(child: IPLPollApp()));
 }
@@ -131,6 +136,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (!mounted) return;
 
     if (restored) {
+      // Initialize push notifications after successful auth
+      final api = ref.read(apiServiceProvider);
+      NotificationService.init(api);
+
       final user = ref.read(authProvider);
       if (user?.mustChangePassword == true) {
         context.go('/change-password', extra: true);

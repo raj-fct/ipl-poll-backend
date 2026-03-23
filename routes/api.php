@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout',          [AuthController::class, 'logout']);
     Route::get('/auth/profile',          [AuthController::class, 'profile']);
     Route::post('/auth/change-password', [AuthController::class, 'changePassword']);
+    Route::post('/auth/fcm-token',       [AuthController::class, 'updateFcmToken']);
 
     // Matches
     Route::get('/matches',          [MatchController::class, 'index']);

@@ -172,6 +172,12 @@ class ApiService {
     return res.data;
   }
 
+  // ─── FCM Token ─────────────────────────────────────────────
+
+  Future<void> registerFcmToken(String token) async {
+    await _dio.post('/auth/fcm-token', data: {'fcm_token': token});
+  }
+
   // ─── Error helper ────────────────────────────────────────────
 
   static String humanError(Object e) {

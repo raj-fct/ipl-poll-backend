@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "93155614356",
+    "project_id": "ipl-poll-c03b4",
+    "storage_bucket": "ipl-poll-c03b4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:93155614356:android:e19ac013f8f61ff3385e81",
+        "android_client_info": {
+          "package_name": "com.flyingcaps.ipl.poll"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXkIY4ZkcgMf6aaenxO9YgEKT3FvkxC18"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
