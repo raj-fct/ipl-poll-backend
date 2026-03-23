@@ -17,3 +17,9 @@ Schedule::command('ipl:verify-results')
 Schedule::command('ipl:fetch-matches')
     ->dailyAt('06:00')
     ->appendOutputTo(storage_path('logs/fetch-matches.log'));
+
+// Send match notifications (match day, 2hr, 1hr, 30min before poll close)
+Schedule::command('ipl:send-match-notifications')
+    ->everyMinute()
+    ->between('08:30', '23:59')
+    ->appendOutputTo(storage_path('logs/match-notifications.log'));

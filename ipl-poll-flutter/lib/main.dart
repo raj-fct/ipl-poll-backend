@@ -26,7 +26,7 @@ void main() async {
   runApp(const ProviderScope(child: IPLPollApp()));
 }
 
-final _appRouter = GoRouter(
+final appRouter = GoRouter(
   initialLocation: '/splash',
   routes: [
     GoRoute(
@@ -79,7 +79,7 @@ class IPLPollApp extends StatelessWidget {
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.iplTheme(),
-      routerConfig: _appRouter,
+      routerConfig: appRouter,
     );
   }
 }
@@ -139,7 +139,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (restored) {
       // Initialize push notifications after successful auth
       final api = ref.read(apiServiceProvider);
-      NotificationService.init(api);
+      NotificationService.init(api, appRouter);
 
       final user = ref.read(authProvider);
       if (user?.mustChangePassword == true) {

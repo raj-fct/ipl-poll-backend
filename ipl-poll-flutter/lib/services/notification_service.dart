@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:go_router/go_router.dart';
 import 'api_service.dart';
 
 /// Handles background FCM messages (must be top-level function).
@@ -17,6 +18,7 @@ class NotificationService {
   static final _messaging = FirebaseMessaging.instance;
   static final _localNotifications = FlutterLocalNotificationsPlugin();
   static ApiService? _api;
+  static GoRouter? _router;
 
   static const _channel = AndroidNotificationChannel(
     'ipl_poll_channel',
@@ -26,8 +28,9 @@ class NotificationService {
   );
 
   /// Initialize notifications. Call after Firebase.initializeApp().
-  static Future<void> init(ApiService api) async {
+  static Future<void> init(ApiService api, GoRouter router) async {
     _api = api;
+    _router = router;
 
     // Set up local notifications
     await _setupLocalNotifications();
@@ -77,9 +80,7 @@ class NotificationService {
         android: androidSettings,
         iOS: iosSettings,
       ),
-      onDidReceiveNotificationResponse: (details) {
-        // Handle notification tap from local notification
-      },
+      onDidReceiveNotificationResponse: _onLocalNotificationTap,
     );
 
     // Create Android notification channel
@@ -88,6 +89,13 @@ class NotificationService {
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(_channel);
+    }
+  }
+
+  static void _onLocalNotificationTap(NotificationResponse details) {
+    final route = details.payload;
+    if (route != null && route.isNotEmpty) {
+      _navigateTo(route);
     }
   }
 
@@ -132,7 +140,17 @@ class NotificationService {
   }
 
   static void _handleNotificationTap(RemoteMessage message) {
-    // Navigation can be handled here if needed
-    // e.g., navigate to a specific match or poll result
+    final route = message.data['route'];
+    if (route != null && route.toString().isNotEmpty) {
+      _navigateTo(route.toString());
+    }
+  }
+
+  static void _navigateTo(String route) {
+    try {
+      _router?.push(route);
+    } catch (e) {
+      debugPrint('Notification navigation failed: $e');
+    }
   }
 }

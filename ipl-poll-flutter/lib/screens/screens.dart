@@ -2516,7 +2516,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       // Initialize push notifications after login
       final api = ref.read(apiServiceProvider);
-      NotificationService.init(api);
+      NotificationService.init(api, appRouter);
 
       if (result.mustChangePassword) {
         context.go('/change-password', extra: true);
