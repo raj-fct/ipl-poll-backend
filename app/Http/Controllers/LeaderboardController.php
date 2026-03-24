@@ -11,10 +11,16 @@ class LeaderboardController extends Controller
 {
     public function index(): JsonResponse
     {
-        $leaders = User::select('id', 'name', 'mobile', 'coin_balance')
-            ->where('is_admin', false)
-            ->where('is_active', true)
-            ->orderByDesc('coin_balance')
+        // Include pending bid amounts so other users cannot deduce bid amounts
+        $leaders = User::select(
+                'users.id', 'users.name', 'users.mobile', 'users.coin_balance',
+                DB::raw('COALESCE(SUM(CASE WHEN polls.status = \'pending\' THEN polls.bid_amount ELSE 0 END), 0) as pending_coins')
+            )
+            ->leftJoin('polls', 'users.id', '=', 'polls.user_id')
+            ->where('users.is_admin', false)
+            ->where('users.is_active', true)
+            ->groupBy('users.id', 'users.name', 'users.mobile', 'users.coin_balance')
+            ->orderByRaw('(users.coin_balance + COALESCE(SUM(CASE WHEN polls.status = \'pending\' THEN polls.bid_amount ELSE 0 END), 0)) DESC')
             ->limit(50)
             ->get()
             ->values()
@@ -23,7 +29,7 @@ class LeaderboardController extends Controller
                 'id'            => $u->id,
                 'name'          => $u->name,
                 'mobile_masked' => substr($u->mobile, 0, 3) . '****' . substr($u->mobile, -3),
-                'coin_balance'  => $u->coin_balance,
+                'coin_balance'  => $u->coin_balance + (int) $u->pending_coins,
             ]);
 
         return response()->json(['leaderboard' => $leaders]);
@@ -61,9 +67,20 @@ class LeaderboardController extends Controller
     {
         $user = $request->user();
 
-        $coinRank = User::where('coin_balance', '>', $user->coin_balance)
-            ->where('is_admin', false)
-            ->where('is_active', true)
+        // Include pending bids in effective balance
+        $myPending = (int) $user->polls()->where('status', 'pending')->sum('bid_amount');
+        $myEffective = $user->coin_balance + $myPending;
+
+        // Rank by effective balance (coin_balance + pending bids)
+        $coinRank = DB::table('users')
+            ->leftJoin('polls', function ($join) {
+                $join->on('users.id', '=', 'polls.user_id')
+                     ->where('polls.status', '=', 'pending');
+            })
+            ->where('users.is_admin', false)
+            ->where('users.is_active', true)
+            ->groupBy('users.id', 'users.coin_balance')
+            ->havingRaw('(users.coin_balance + COALESCE(SUM(polls.bid_amount), 0)) > ?', [$myEffective])
             ->count() + 1;
 
         $myWins = $user->polls()->where('status', 'won')->count();
@@ -81,7 +98,7 @@ class LeaderboardController extends Controller
 
         return response()->json([
             'rank'         => $coinRank,
-            'coin_balance' => $user->coin_balance,
+            'coin_balance' => $myEffective,
             'name'         => $user->name,
             'wins_rank'    => $winsRank,
             'total_wins'   => $myWins,
