@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'core/constants.dart';
 import 'providers/providers.dart';
+import 'services/api_service.dart';
 import 'services/notification_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/change_password_screen.dart';
@@ -29,12 +30,31 @@ void main() async {
     await Firebase.initializeApp();
   }
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  NotificationService.setupListeners();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  // Redirect to login on any 401 response
+  ApiService.onUnauthorized = () {
+    debugPrint('[API] onUnauthorized fired — redirecting to /login');
+    appRouter.go('/login');
+  };
+
   runApp(const ProviderScope(child: IPLPollApp()));
 }
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
+  redirect: (context, state) {
+    final loc = state.matchedLocation;
+    final isPublic = loc == '/splash' || loc == '/login' || loc == '/change-password';
+    // Block all routes until authenticated — prevents race conditions
+    // where notification tap loads a screen before token is restored
+    if (!ApiService.isAuthenticated && !isPublic) {
+      debugPrint('[Router] Blocked $loc — not authenticated, redirecting to /splash');
+      return '/splash';
+    }
+    return null;
+  },
   routes: [
     GoRoute(
       path: '/splash',
@@ -136,25 +156,48 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     _init();
   }
 
+  Future<void> _goHomeWithPendingRoute() async {
+    final pending = NotificationService.pendingRoute;
+    NotificationService.pendingRoute = null;
+    context.go('/home');
+    if (pending != null) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) context.push(pending);
+    }
+  }
+
   Future<void> _init() async {
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
 
+    // Check if app was launched from a notification tap (before auth)
+    debugPrint('[Splash] Checking initial notification...');
+    await NotificationService.checkInitialNotification();
+    debugPrint('[Splash] pendingRoute = ${NotificationService.pendingRoute}');
+
+    debugPrint('[Splash] Restoring session...');
     final restored = await ref.read(authProvider.notifier).tryRestoreSession();
+    debugPrint('[Splash] Session restored = $restored');
     if (!mounted) return;
 
     if (restored) {
       // Initialize push notifications after successful auth
+      debugPrint('[Splash] Initializing notifications...');
       final api = ref.read(apiServiceProvider);
-      NotificationService.init(api, appRouter);
+      await NotificationService.init(api, appRouter);
+      debugPrint('[Splash] Notifications initialized');
 
       final user = ref.read(authProvider);
       if (user?.mustChangePassword == true) {
+        debugPrint('[Splash] Redirecting to change-password');
         context.go('/change-password', extra: true);
       } else {
-        context.go('/home');
+        debugPrint('[Splash] Going to home with pending route');
+        _goHomeWithPendingRoute();
       }
     } else {
+      // Not logged in — pendingRoute is preserved for after login
+      debugPrint('[Splash] Not restored, going to login');
       context.go('/login');
     }
   }

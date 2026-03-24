@@ -66,7 +66,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: Row(children: [
                 const CoinIcon(size: 16),
                 const SizedBox(width: 4),
-                Text('${user?.coinBalance ?? 0}',
+                Text(formatCoins(user?.coinBalance ?? 0),
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
               ]),
@@ -191,11 +191,8 @@ class _FixturesTab extends StatelessWidget {
               .where((m) => (m.isUpcoming || m.isLive) && m.season == 'IPL 2026')
               .toList();
           if (fixtures.isEmpty) {
-            return ListView(children: const [
-              SizedBox(height: 200),
-              Center(child: Text('No upcoming fixtures.',
-                  style: TextStyle(color: IPLColors.textMuted))),
-            ]);
+            return const Center(child: Text('No upcoming fixtures.',
+                style: TextStyle(color: IPLColors.textMuted)));
           }
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -238,11 +235,8 @@ class _ResultsTab extends StatelessWidget {
               .toList()
             ..sort((a, b) => b.matchDate.compareTo(a.matchDate));
           if (results.isEmpty) {
-            return ListView(children: const [
-              SizedBox(height: 200),
-              Center(child: Text('No results yet.',
-                  style: TextStyle(color: IPLColors.textMuted))),
-            ]);
+            return const Center(child: Text('No results yet.',
+                style: TextStyle(color: IPLColors.textMuted)));
           }
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -399,13 +393,8 @@ class _MyPollsTab extends ConsumerWidget {
         error: (e, _) => Center(child: Text(ApiService.humanError(e))),
         data: (polls) {
           if (polls.isEmpty) {
-            return ListView(
-              children: const [
-                SizedBox(height: 120),
-                Center(child: Text('No predictions yet. Place your first one!',
-                    style: TextStyle(color: IPLColors.textMuted))),
-              ],
-            );
+            return const Center(child: Text('No predictions yet. Place your first one!',
+                style: TextStyle(color: IPLColors.textMuted)));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(14),
@@ -1824,7 +1813,7 @@ class MyPollsScreen extends ConsumerWidget {
               child: Row(children: [
                 const CoinIcon(size: 16),
                 const SizedBox(width: 4),
-                Text('${user?.coinBalance ?? 0}',
+                Text(formatCoins(user?.coinBalance ?? 0),
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
               ]),
@@ -2011,15 +2000,15 @@ class WalletScreen extends ConsumerWidget {
                             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                               const CoinIcon(size: 32),
                               const SizedBox(width: 10),
-                              Text('${balanceAsync.value!['balance']}',
+                              Text(formatCoins(balanceAsync.value!['balance']),
                                   style: const TextStyle(fontSize: 38,
                                       fontWeight: FontWeight.w800, color: Colors.white)),
                             ]),
                             const SizedBox(height: 20),
                             Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                              _WalletStat('Total Won', '${balanceAsync.value!['total_won']}', Colors.greenAccent),
+                              _WalletStat('Total Won', formatCoins(balanceAsync.value!['total_won']), Colors.greenAccent),
                               Container(width: 1, height: 30, color: IPLColors.border),
-                              _WalletStat('Pending', '${pollsAsync.whenOrNull(data: (polls) => polls.where((p) => p.isPending).fold<int>(0, (sum, p) => sum + p.bidAmount)) ?? 0}', IPLColors.accent),
+                              _WalletStat('Pending', formatCoins(pollsAsync.whenOrNull(data: (polls) => polls.where((p) => p.isPending).fold<int>(0, (sum, p) => sum + p.bidAmount)) ?? 0), IPLColors.accent),
                             ]),
                           ]),
                         ),
@@ -2051,13 +2040,8 @@ class WalletScreen extends ConsumerWidget {
                                 itemCount: txnsAsync.value!.length,
                                 itemBuilder: (_, i) => _TxnTile(txn: txnsAsync.value![i]),
                               )
-                            : ListView(
-                                children: const [
-                                  SizedBox(height: 60),
-                                  Center(child: Text('No transactions yet',
-                                      style: TextStyle(color: IPLColors.textMuted, fontSize: 13))),
-                                ],
-                              ),
+                            : const Center(child: Text('No transactions yet',
+                                  style: TextStyle(color: IPLColors.textMuted, fontSize: 13))),
                       ),
                     ),
                   ],
@@ -2245,7 +2229,10 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
             ),
 
             boardAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => SizedBox(
+                height: MediaQuery.of(context).size.height * 0.5,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
               error: (e, _) => Text(ApiService.humanError(e)),
               data: (entries) => Column(
                 children: entries.map((e) => _LeaderRow(
@@ -2359,7 +2346,7 @@ class ProfileScreen extends ConsumerWidget {
               child: Row(children: [
                 const CoinIcon(size: 16),
                 const SizedBox(width: 4),
-                Text('${user?.coinBalance ?? 0}',
+                Text(formatCoins(user?.coinBalance ?? 0),
                     style: const TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
               ]),
@@ -2516,12 +2503,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       // Initialize push notifications after login
       final api = ref.read(apiServiceProvider);
-      NotificationService.init(api, appRouter);
+      await NotificationService.init(api, appRouter);
 
       if (result.mustChangePassword) {
         context.go('/change-password', extra: true);
       } else {
+        // If app was launched from a notification, navigate there after login
+        final pending = NotificationService.pendingRoute;
+        NotificationService.pendingRoute = null;
         context.go('/home');
+        if (pending != null) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) context.push(pending);
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -2970,6 +2964,15 @@ class _BiddingTile extends StatelessWidget {
 }
 
 // ─── Reusable Team Logo Widget ───────────────────────────────
+
+String formatCoins(dynamic value) {
+  final n = (value is int) ? value : int.tryParse('$value') ?? 0;
+  if (n >= 10000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+  if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+  if (n >= 100000) return '${(n / 1000).toStringAsFixed(0)}k';
+  if (n >= 10000) return '${(n / 1000).toStringAsFixed(1)}k';
+  return '$n';
+}
 
 class CoinIcon extends StatelessWidget {
   final double size;

@@ -1,5 +1,6 @@
 // lib/providers/providers.dart
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
@@ -16,13 +17,17 @@ class AuthNotifier extends StateNotifier<UserModel?> {
 
   Future<bool> tryRestoreSession() async {
     final hasToken = await _api.hasStoredToken();
+    debugPrint('[Auth] hasStoredToken = $hasToken');
     if (!hasToken) return false;
     await _api.restoreToken();
+    debugPrint('[Auth] Token restored to Dio headers');
     try {
       final data = await _api.getProfile();
+      debugPrint('[Auth] getProfile success');
       state = UserModel.fromJson(data['user']);
       return true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[Auth] getProfile FAILED: $e');
       return false;
     }
   }

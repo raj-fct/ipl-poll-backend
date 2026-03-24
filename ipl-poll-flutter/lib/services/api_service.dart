@@ -1,12 +1,20 @@
 // lib/services/api_service.dart
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/constants.dart';
 
 class ApiService {
   late final Dio _dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+
+  /// Called when any API returns 401 — set by the app to redirect to login.
+  static void Function()? onUnauthorized;
+
+  /// Whether the user is authenticated (token restored/set).
+  /// Used by GoRouter redirect to block routes before auth is ready.
+  static bool isAuthenticated = false;
 
   ApiService() {
     _dio = Dio(BaseOptions(
@@ -18,6 +26,20 @@ class ApiService {
 
     _dio.interceptors.add(InterceptorsWrapper(
       onError: (DioException e, handler) {
+        debugPrint('[API] Error: ${e.response?.statusCode} ${e.requestOptions.path} — ${e.message}');
+        // Global 401 handler — clear token and redirect to login.
+        // Skip for auth endpoints (splash/login handle those themselves).
+        if (e.response?.statusCode == 401) {
+          final path = e.requestOptions.path;
+          final isAuthEndpoint = path.startsWith('/auth/');
+          debugPrint('[API] 401 on $path, isAuthEndpoint=$isAuthEndpoint');
+          if (!isAuthEndpoint) {
+            debugPrint('[API] Clearing token and redirecting to login');
+            clearToken();
+            _storage.delete(key: AppConstants.tokenKey);
+            onUnauthorized?.call();
+          }
+        }
         final msg = _extractError(e);
         return handler.reject(DioException(
           requestOptions: e.requestOptions,
@@ -32,17 +54,21 @@ class ApiService {
 
   Future<void> restoreToken() async {
     final token = await _storage.read(key: AppConstants.tokenKey);
+    debugPrint('[API] restoreToken: token ${token != null ? "found (${token.substring(0, 10)}...)" : "NOT found"}');
     if (token != null) {
       _dio.options.headers['Authorization'] = 'Bearer $token';
+      isAuthenticated = true;
     }
   }
 
   void setToken(String token) {
     _dio.options.headers['Authorization'] = 'Bearer $token';
+    isAuthenticated = true;
   }
 
   void clearToken() {
     _dio.options.headers.remove('Authorization');
+    isAuthenticated = false;
   }
 
   // ─── Auth ────────────────────────────────────────────────────
