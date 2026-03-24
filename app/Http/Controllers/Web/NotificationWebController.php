@@ -9,6 +9,7 @@ use App\Models\ScheduledNotification;
 use App\Services\NotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class NotificationWebController extends Controller
 {
@@ -113,8 +114,21 @@ class NotificationWebController extends Controller
         }
 
         // Send immediately
+        Log::info('[Notification] Admin sending immediate notification', [
+            'admin_id' => auth()->id(),
+            'title'    => $data['title'],
+            'body'     => $data['body'],
+            'match_id' => $data['match_id'] ?? null,
+            'data'     => $extraData,
+        ]);
+
         $notificationService = app(NotificationService::class);
         $result = $notificationService->sendToAll($data['title'], $data['body'], $extraData);
+
+        Log::info('[Notification] Admin immediate notification result', [
+            'success' => $result['success'],
+            'failure' => $result['failure'],
+        ]);
 
         return redirect()->route('admin.notifications.index')
             ->with('success', "Notification sent! Success: {$result['success']}, Failed: {$result['failure']}");
