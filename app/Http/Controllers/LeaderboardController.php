@@ -21,6 +21,7 @@ class LeaderboardController extends Controller
             ->where('users.is_active', true)
             ->groupBy('users.id', 'users.name', 'users.mobile', 'users.coin_balance')
             ->orderByRaw('(users.coin_balance + COALESCE(SUM(CASE WHEN polls.status = \'pending\' THEN polls.bid_amount ELSE 0 END), 0)) DESC')
+            ->orderBy('users.name', 'asc')
             ->limit(50)
             ->get()
             ->values()
@@ -47,6 +48,7 @@ class LeaderboardController extends Controller
             ->where('users.is_active', true)
             ->groupBy('users.id', 'users.name', 'users.mobile')
             ->orderByDesc('total_wins')
+            ->orderBy('users.name', 'asc')
             ->limit(50)
             ->get()
             ->values()
@@ -79,8 +81,8 @@ class LeaderboardController extends Controller
             })
             ->where('users.is_admin', false)
             ->where('users.is_active', true)
-            ->groupBy('users.id', 'users.coin_balance')
-            ->havingRaw('(users.coin_balance + COALESCE(SUM(polls.bid_amount), 0)) > ?', [$myEffective])
+            ->groupBy('users.id', 'users.coin_balance', 'users.name')
+            ->havingRaw('(users.coin_balance + COALESCE(SUM(polls.bid_amount), 0)) > ? OR ((users.coin_balance + COALESCE(SUM(polls.bid_amount), 0)) = ? AND users.name < ?)', [$myEffective, $myEffective, $user->name])
             ->count() + 1;
 
         $myWins = $user->polls()->where('status', 'won')->count();
@@ -92,8 +94,8 @@ class LeaderboardController extends Controller
             })
             ->where('users.is_admin', false)
             ->where('users.is_active', true)
-            ->groupBy('users.id')
-            ->havingRaw('COUNT(polls.id) > ?', [$myWins])
+            ->groupBy('users.id', 'users.name')
+            ->havingRaw('COUNT(polls.id) > ? OR (COUNT(polls.id) = ? AND users.name < ?)', [$myWins, $myWins, $user->name])
             ->count() + 1;
 
         return response()->json([
