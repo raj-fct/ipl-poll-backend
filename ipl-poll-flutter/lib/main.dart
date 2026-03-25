@@ -11,6 +11,7 @@ import 'core/constants.dart';
 import 'providers/providers.dart';
 import 'services/api_service.dart';
 import 'services/notification_service.dart';
+import 'services/remote_config_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/change_password_screen.dart';
 import 'screens/home_screen.dart';
@@ -22,13 +23,8 @@ import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp();
-    }
-  } catch (_) {
-    await Firebase.initializeApp();
-  }
+  await Firebase.initializeApp();
+  await RemoteConfigService.init();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   NotificationService.setupListeners();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -44,6 +40,29 @@ void main() async {
 
 final appRouter = GoRouter(
   initialLocation: '/splash',
+  errorBuilder: (context, state) => Scaffold(
+    body: IPLBackground(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 64, color: IPLColors.textMuted),
+            const SizedBox(height: 16),
+            const Text('Page Not Found',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white)),
+            const SizedBox(height: 8),
+            Text(state.uri.toString(),
+                style: const TextStyle(fontSize: 13, color: IPLColors.textMuted)),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => context.go('/home'),
+              child: const Text('Go Home'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  ),
   redirect: (context, state) {
     final loc = state.matchedLocation;
     final isPublic = loc == '/splash' || loc == '/login' || loc == '/change-password';
@@ -74,7 +93,10 @@ final appRouter = GoRouter(
     ShellRoute(
       builder: (ctx, state, child) => MainShell(child: child),
       routes: [
-        GoRoute(path: '/home',         builder: (_, __) => const HomeScreen()),
+        GoRoute(path: '/home',         builder: (_, state) {
+          final tab = state.extra as int? ?? 0;
+          return HomeScreen(initialTab: tab);
+        }),
         GoRoute(path: '/leaderboard', builder: (_, __) => const LeaderboardScreen()),
         GoRoute(path: '/wallet',      builder: (_, __) => const WalletScreen()),
         GoRoute(path: '/profile',     builder: (_, __) => const ProfileScreen()),

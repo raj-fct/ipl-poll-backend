@@ -41,7 +41,11 @@ class NotificationService {
     _isReady = false; // Reset — splash will set ready after init()
     try {
       debugPrint('[FCM] Checking getInitialMessage...');
-      final initialMessage = await _messaging.getInitialMessage();
+      final initialMessage = await _messaging.getInitialMessage()
+          .timeout(const Duration(seconds: 3), onTimeout: () {
+        debugPrint('[FCM] getInitialMessage timed out');
+        return null;
+      });
       debugPrint('[FCM] getInitialMessage = ${initialMessage?.messageId}, data = ${initialMessage?.data}');
       if (initialMessage != null) {
         final route = initialMessage.data['route'];
@@ -86,6 +90,13 @@ class NotificationService {
 
     // Set up local notifications
     await _setupLocalNotifications();
+
+    // iOS: tell the system to show banners even when app is in foreground
+    await _messaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
 
     // Request permission
     final settings = await _messaging.requestPermission(

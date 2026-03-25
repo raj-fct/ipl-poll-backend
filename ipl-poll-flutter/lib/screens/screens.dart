@@ -15,7 +15,8 @@ import '../services/notification_service.dart';
 import '../main.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
+  final int initialTab;
+  const HomeScreen({super.key, this.initialTab = 0});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -28,7 +29,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTab);
   }
 
   @override
@@ -2394,7 +2395,7 @@ class ProfileScreen extends ConsumerWidget {
                 children: [
                   _StatCard('Total Polls', '${stats['total_polls']}',
                       Icons.poll_rounded, IPLColors.accent,
-                      onTap: () => context.go('/my-polls')),
+                      onTap: () => context.go('/home', extra: 2)),
                   _StatCard('Won', '${stats['won']}',
                       Icons.emoji_events, Colors.greenAccent),
                   _StatCard('Lost', '${stats['lost']}',

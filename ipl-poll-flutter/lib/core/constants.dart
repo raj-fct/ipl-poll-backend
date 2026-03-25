@@ -1,12 +1,12 @@
 // lib/core/constants.dart
 
+import '../services/remote_config_service.dart';
+
 class AppConstants {
   AppConstants._();
 
-  // ── API Base URL ────────────────────────────────────────────
-  static const String baseUrl = 'https://ipl.flyingcaps.com/api';
-  // static const String baseUrl = 'http://10.0.2.2:8000/api'; // Android emulator
-  // static const String baseUrl = 'http://localhost:8000/api'; // iOS simulator
+  // ── API Base URL (from Firebase Remote Config) ─────────────
+  static String get baseUrl => RemoteConfigService.apiBaseUrl;
 
   static const String appName   = 'IPL Poll';
   static const String tokenKey  = 'auth_token';
