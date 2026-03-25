@@ -97,7 +97,10 @@ final appRouter = GoRouter(
           final tab = state.extra as int? ?? 0;
           return HomeScreen(initialTab: tab);
         }),
-        GoRoute(path: '/leaderboard', builder: (_, __) => const LeaderboardScreen()),
+        GoRoute(path: '/leaderboard', builder: (_, state) {
+          final tab = state.extra as int? ?? 0;
+          return LeaderboardScreen(initialTab: tab);
+        }),
         GoRoute(path: '/wallet',      builder: (_, __) => const WalletScreen()),
         GoRoute(path: '/profile',     builder: (_, __) => const ProfileScreen()),
       ],

@@ -236,8 +236,16 @@ class _ResultsTab extends StatelessWidget {
               .toList()
             ..sort((a, b) => b.matchDate.compareTo(a.matchDate));
           if (results.isEmpty) {
-            return const Center(child: Text('No results yet.',
-                style: TextStyle(color: IPLColors.textMuted)));
+            return LayoutBuilder(builder: (ctx, constraints) =>
+              SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: const Center(child: Text('No results yet.',
+                      style: TextStyle(color: IPLColors.textMuted))),
+                ),
+              ),
+            );
           }
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
@@ -394,8 +402,16 @@ class _MyPollsTab extends ConsumerWidget {
         error: (e, _) => Center(child: Text(ApiService.humanError(e))),
         data: (polls) {
           if (polls.isEmpty) {
-            return const Center(child: Text('No predictions yet. Place your first one!',
-                style: TextStyle(color: IPLColors.textMuted)));
+            return LayoutBuilder(builder: (ctx, constraints) =>
+              SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: const Center(child: Text('No predictions yet. Place your first one!',
+                      style: TextStyle(color: IPLColors.textMuted))),
+                ),
+              ),
+            );
           }
           return ListView.builder(
             padding: const EdgeInsets.all(14),
@@ -1830,8 +1846,16 @@ class MyPollsScreen extends ConsumerWidget {
           error: (e, _) => Center(child: Text(ApiService.humanError(e))),
           data: (polls) {
             if (polls.isEmpty) {
-              return const Center(child: Text('No predictions yet. Place your first one!',
-                  style: TextStyle(color: IPLColors.textMuted)));
+              return LayoutBuilder(builder: (ctx, constraints) =>
+                SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SizedBox(
+                    height: constraints.maxHeight,
+                    child: const Center(child: Text('No predictions yet. Place your first one!',
+                        style: TextStyle(color: IPLColors.textMuted))),
+                  ),
+                ),
+              );
             }
             return ListView.builder(
               padding: const EdgeInsets.all(14),
@@ -2118,7 +2142,8 @@ class _TxnTile extends StatelessWidget {
 // lib/screens/leaderboard_screen.dart
 
 class LeaderboardScreen extends ConsumerStatefulWidget {
-  const LeaderboardScreen({super.key});
+  final int initialTab;
+  const LeaderboardScreen({super.key, this.initialTab = 0});
 
   @override
   ConsumerState<LeaderboardScreen> createState() => _LeaderboardScreenState();
@@ -2132,7 +2157,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _currentTab = widget.initialTab;
+    _tabController = TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
     _tabController.addListener(() {
       if (_currentTab != _tabController.index) {
         setState(() => _currentTab = _tabController.index);
@@ -2397,11 +2423,14 @@ class ProfileScreen extends ConsumerWidget {
                       Icons.poll_rounded, IPLColors.accent,
                       onTap: () => context.go('/home', extra: 2)),
                   _StatCard('Won', '${stats['won']}',
-                      Icons.emoji_events, Colors.greenAccent),
+                      Icons.emoji_events, Colors.greenAccent,
+                      onTap: () => context.go('/leaderboard', extra: 1)),
                   _StatCard('Lost', '${stats['lost']}',
-                      Icons.cancel, IPLColors.red),
-                  _StatCard('Win Rate', '${stats['win_rate']}%',
-                      Icons.percent, IPLColors.accentLight),
+                      Icons.cancel, IPLColors.red,
+                      onTap: () => context.go('/leaderboard', extra: 1)),
+                  _StatCard('Win Rate', '${stats['win_rate']}',
+                      Icons.percent, IPLColors.accentLight,
+                      onTap: () => context.go('/leaderboard', extra: 1)),
                 ],
               ),
               const SizedBox(height: 28),

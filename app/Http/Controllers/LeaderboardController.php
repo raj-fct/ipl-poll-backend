@@ -41,7 +41,7 @@ class LeaderboardController extends Controller
         $leaders = User::select(
                 'users.id', 'users.name', 'users.mobile',
                 DB::raw('COUNT(CASE WHEN polls.status = \'won\' THEN 1 END) as total_wins'),
-                DB::raw('COUNT(polls.id) as total_polls')
+                DB::raw('COUNT(CASE WHEN polls.status IN (\'won\', \'lost\') THEN 1 END) as total_polls')
             )
             ->leftJoin('polls', 'users.id', '=', 'polls.user_id')
             ->where('users.is_admin', false)
