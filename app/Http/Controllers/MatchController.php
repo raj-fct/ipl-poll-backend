@@ -43,9 +43,7 @@ class MatchController extends Controller
 
     public function polls(IplMatch $match): JsonResponse
     {
-        if (! $match->isPollsClosed()) {
-            return response()->json(['message' => 'Predictions will be visible after polls close.'], 422);
-        }
+        $pollsClosed = $match->isPollsClosed();
 
         $polls = $match->polls()
             ->where('status', '!=', 'refunded')
@@ -54,14 +52,20 @@ class MatchController extends Controller
             ->get()
             ->map(fn ($poll) => [
                 'user_name'     => $poll->user->name ?? 'User',
+                'selected_team' => $poll->selected_team,
+                'bid_amount'    => $poll->bid_amount,
                 'status'        => $poll->status,
+                'coins_earned'  => $poll->coins_earned,
             ]);
 
         return response()->json([
-            'polls' => $polls,
-            'match' => [
-                'team_a_logo' => $match->team_a_logo,
-                'team_b_logo' => $match->team_b_logo,
+            'polls'        => $polls,
+            'polls_closed' => $pollsClosed,
+            'match'        => [
+                'team_a_short' => $match->team_a_short,
+                'team_b_short' => $match->team_b_short,
+                'team_a_logo'  => $match->team_a_logo,
+                'team_b_logo'  => $match->team_b_logo,
             ],
         ]);
     }
