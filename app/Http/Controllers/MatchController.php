@@ -45,11 +45,23 @@ class MatchController extends Controller
     {
         $pollsClosed = $match->isPollsClosed();
 
-        $polls = $match->polls()
+        $isCompleted = in_array($match->status, ['completed', 'cancelled']);
+
+        $query = $match->polls()
             ->where('status', '!=', 'refunded')
-            ->with('user:id,name')
-            ->latest()
-            ->get()
+            ->with('user:id,name');
+
+        if ($isCompleted) {
+            // Completed: winners first (highest earned), then losers (lowest bid first)
+            $query->orderByRaw("FIELD(status, 'won', 'lost', 'pending')")
+                  ->orderByRaw("CASE WHEN status = 'won' THEN coins_earned END DESC")
+                  ->orderByRaw("CASE WHEN status = 'lost' THEN bid_amount END ASC");
+        } else {
+            // Pending: highest bid to lowest
+            $query->orderByDesc('bid_amount');
+        }
+
+        $polls = $query->get()
             ->map(fn ($poll) => [
                 'user_name'     => $poll->user->name ?? 'User',
                 'selected_team' => $poll->selected_team,
