@@ -767,7 +767,22 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
     return Scaffold(
       body: IPLBackground(child: detailAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text(ApiService.humanError(e))),
+        error: (e, _) => RefreshIndicator(
+          color: IPLColors.accent,
+          onRefresh: () async {
+            try { await ref.refresh(matchDetailProvider(widget.matchId).future); } catch (_) {}
+          },
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(child: Text(ApiService.humanError(e),
+                    style: const TextStyle(color: IPLColors.textMuted))),
+              ),
+            ),
+          ),
+        ),
         data: (data) {
           final match = MatchModel.fromJson(data['match']);
           final stats = data['stats'] as Map<String, dynamic>;
@@ -937,43 +952,83 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
 
               // ── Body ──
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
+                child: RefreshIndicator(
+                  color: IPLColors.accent,
+                  onRefresh: () async {
+                    try { await ref.refresh(matchDetailProvider(widget.matchId).future); } catch (_) {}
+                    ref.invalidate(walletBalanceProvider);
+                  },
+                child: LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Column(children: [
-                    // Community prediction (compact)
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Column(children: [
+                    // Community prediction (always visible, percentages hidden until poll ends)
                     _VoteSplitBar(
                         teamA: match.teamAShort,
                         teamB: match.teamBShort,
                         teamALogo: match.teamALogo,
                         teamBLogo: match.teamBLogo,
                         teamAPercent: (stats['team_a_percentage'] as num).toInt(),
-                        total: (stats['total_polls'] as num).toInt()),
+                        total: (stats['total_polls'] as num).toInt(),
+                        showPercentages: !canPredict),
 
                     const SizedBox(height: 8),
 
-                    // View all predictions link (only after polls close)
-                    if (!canPredict)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => context.push('/match/${match.id}/biddings'),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                Text('View All Predictions',
-                                    style: TextStyle(color: IPLColors.accent,
-                                        fontSize: 12, fontWeight: FontWeight.w600)),
-                                SizedBox(width: 4),
-                                Icon(Icons.arrow_forward_ios,
-                                    color: IPLColors.accent, size: 12),
-                              ],
-                            ),
+                    // View all predictions link (always visible, disabled during active poll)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: canPredict
+                            ? () {
+                                final overlay = Overlay.of(context);
+                                late OverlayEntry entry;
+                                entry = OverlayEntry(builder: (ctx) {
+                                  final box = context.findRenderObject() as RenderBox?;
+                                  final pos = box?.localToGlobal(Offset.zero) ?? Offset.zero;
+                                  return Positioned(
+                                    left: 24,
+                                    right: 24,
+                                    top: pos.dy - 50,
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                        decoration: BoxDecoration(
+                                          color: IPLColors.cardDark,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: IPLColors.border.withOpacity(0.3)),
+                                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8)],
+                                        ),
+                                        child: const Text('Predictions will be visible after poll ends.',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(color: Colors.white, fontSize: 12)),
+                                      ),
+                                    ),
+                                  );
+                                });
+                                overlay.insert(entry);
+                                Future.delayed(const Duration(seconds: 2), () => entry.remove());
+                              }
+                            : () => context.push('/match/${match.id}/biddings'),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('View All Predictions',
+                                  style: TextStyle(color: canPredict ? IPLColors.textMuted : IPLColors.accent,
+                                      fontSize: 12, fontWeight: FontWeight.w600)),
+                              const SizedBox(width: 4),
+                              Icon(Icons.arrow_forward_ios,
+                                  color: canPredict ? IPLColors.textMuted : IPLColors.accent, size: 12),
+                            ],
                           ),
                         ),
                       ),
+                    ),
 
                     const SizedBox(height: 8),
 
@@ -1043,6 +1098,9 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
                       ),
                   ]),
                 ),
+              ),
+              ),
+              ),
               ),
             ]);
         },
@@ -1168,9 +1226,11 @@ class _VoteSplitBar extends StatelessWidget {
   final String teamA, teamB;
   final String? teamALogo, teamBLogo;
   final int teamAPercent, total;
+  final bool showPercentages;
   const _VoteSplitBar({required this.teamA, required this.teamB,
     this.teamALogo, this.teamBLogo,
-    required this.teamAPercent, required this.total});
+    required this.teamAPercent, required this.total,
+    this.showPercentages = true});
 
   // Ensure color is visible on dark bg (lighten if too dark)
   static Color _visibleColor(Color c) {
@@ -1221,11 +1281,11 @@ class _VoteSplitBar extends StatelessWidget {
           Text(teamA, style: TextStyle(color: colorA,
               fontSize: 13, fontWeight: FontWeight.w800)),
           const SizedBox(width: 4),
-          Text('$aPercent%', style: TextStyle(color: colorA,
+          Text('${showPercentages ? aPercent : 0}%', style: TextStyle(color: colorA,
               fontSize: 16, fontWeight: FontWeight.w800)),
           const Spacer(),
           // Team B
-          Text('$bPercent%', style: TextStyle(color: colorB,
+          Text('${showPercentages ? bPercent : 0}%', style: TextStyle(color: colorB,
               fontSize: 16, fontWeight: FontWeight.w800)),
           const SizedBox(width: 4),
           Text(teamB, style: TextStyle(color: colorB,
@@ -1235,16 +1295,28 @@ class _VoteSplitBar extends StatelessWidget {
         ]),
         const SizedBox(height: 10),
         // Progress bar
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Row(children: [
-            Expanded(flex: aPercent > 0 ? aPercent : 1,
-                child: Container(height: 6, color: colorA)),
-            const SizedBox(width: 3),
-            Expanded(flex: bPercent > 0 ? bPercent : 1,
-                child: Container(height: 6, color: colorB)),
-          ]),
-        ),
+        if (showPercentages)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Row(children: [
+              Expanded(flex: aPercent > 0 ? aPercent : 1,
+                  child: Container(height: 6, color: colorA)),
+              const SizedBox(width: 3),
+              Expanded(flex: bPercent > 0 ? bPercent : 1,
+                  child: Container(height: 6, color: colorB)),
+            ]),
+          )
+        else
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              height: 6,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
       ]),
     );
   }
@@ -1636,7 +1708,12 @@ class _PredictionPanel extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: selectedTeam == null || loading ? null : onSubmit,
+            onPressed: selectedTeam == null || loading ||
+                // Disable update when nothing changed from existing poll
+                (match.userPoll != null && !match.userPoll!.isRefunded &&
+                    selectedTeam == match.userPoll!.selectedTeam &&
+                    bidSlider.toInt() == match.userPoll!.bidAmount)
+                ? null : onSubmit,
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2907,16 +2984,34 @@ class MatchBiddingsScreen extends ConsumerWidget {
           Expanded(
             child: RefreshIndicator(
               color: IPLColors.accent,
-              onRefresh: () => ref.refresh(matchPollsProvider(matchId).future),
+              onRefresh: () async {
+                try { await ref.refresh(matchPollsProvider(matchId).future); } catch (_) {}
+              },
               child: pollsAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text(ApiService.humanError(e),
-                    style: const TextStyle(color: IPLColors.textMuted))),
+                error: (e, _) => LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Center(child: Text(ApiService.humanError(e),
+                          style: const TextStyle(color: IPLColors.textMuted))),
+                    ),
+                  ),
+                ),
                 data: (data) {
                   final polls = data['polls'] as List? ?? [];
                   if (polls.isEmpty) {
-                    return const Center(child: Text('No predictions yet.',
-                        style: TextStyle(color: IPLColors.textMuted)));
+                    return LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                          child: const Center(child: Text('No predictions yet.',
+                              style: TextStyle(color: IPLColors.textMuted))),
+                        ),
+                      ),
+                    );
                   }
                   // Build logo map from match detail
                   final matchData = detailAsync.valueOrNull;
@@ -2958,6 +3053,9 @@ class _BiddingTile extends StatelessWidget {
         : isLost ? IPLColors.red
         : IPLColors.accent;
     final userName = poll['user_name'] as String? ?? 'User';
+    final selectedTeam = poll['selected_team'] as String? ?? '';
+    final bidAmount = (poll['bid_amount'] as num?)?.toInt() ?? 0;
+    final coinsEarned = (poll['coins_earned'] as num?)?.toInt() ?? 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -2965,7 +3063,9 @@ class _BiddingTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: IPLColors.cardDark,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: IPLColors.border.withOpacity(0.3)),
+        border: Border.all(color: isWon ? Colors.greenAccent.withOpacity(0.3)
+            : isLost ? IPLColors.red.withOpacity(0.3)
+            : IPLColors.border.withOpacity(0.3)),
       ),
       child: Row(children: [
         CircleAvatar(
@@ -2976,9 +3076,35 @@ class _BiddingTile extends StatelessWidget {
                   fontSize: 14, fontWeight: FontWeight.w700)),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Text(userName,
-            style: const TextStyle(color: Colors.white,
-                fontWeight: FontWeight.w600, fontSize: 13))),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(userName,
+                  style: const TextStyle(color: Colors.white,
+                      fontWeight: FontWeight.w600, fontSize: 13)),
+              const SizedBox(height: 4),
+              Row(children: [
+                if (selectedTeam.isNotEmpty) ...[
+                  TeamLogo(shortCode: selectedTeam, logoUrl: teamLogos[selectedTeam], size: 18),
+                  const SizedBox(width: 5),
+                  Text(selectedTeam, style: TextStyle(color: color,
+                      fontSize: 11, fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 8),
+                ],
+                Image.asset('assets/icons/coin.png', width: 14, height: 14),
+                const SizedBox(width: 3),
+                Text('$bidAmount', style: const TextStyle(color: IPLColors.textSecondary,
+                    fontSize: 11, fontWeight: FontWeight.w600)),
+                if (isWon && coinsEarned > 0) ...[
+                  const SizedBox(width: 6),
+                  Text('+$coinsEarned', style: const TextStyle(color: Colors.greenAccent,
+                      fontSize: 11, fontWeight: FontWeight.w700)),
+                ],
+              ]),
+            ],
+          ),
+        ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
