@@ -129,7 +129,7 @@ class VerifyMatchResults extends Command
                 if ($this->option('dry-run')) {
                     $this->info("  [DRY RUN] Would settle — Winner: {$winner}");
                 } else {
-                    ProcessMatchResult::dispatch($match->id, $winner);
+                    ProcessMatchResult::dispatchSync($match->id, $winner);
                     $this->info("  -> Winner: {$winner} — Settlement job dispatched!");
                     Log::info("Auto-settled Match #{$match->match_number} ({$match->team_a_short} vs {$match->team_b_short}) — Winner: {$winner}");
                 }
