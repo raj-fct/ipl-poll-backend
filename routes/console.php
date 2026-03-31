@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Schedule;
 
-// Verify match results every 30 minutes during IPL hours (2 PM - 12 AM IST)
+// Verify match results every 5 minutes and auto-settle polls
 Schedule::command('ipl:verify-results')
     ->everyFiveMinutes()
     ->appendOutputTo(storage_path('logs/verify-results.log'));

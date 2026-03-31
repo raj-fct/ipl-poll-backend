@@ -39,15 +39,17 @@ class LeaderboardController extends Controller
     public function wins(): JsonResponse
     {
         $leaders = User::select(
-                'users.id', 'users.name', 'users.mobile',
+                'users.id', 'users.name', 'users.mobile', 'users.coin_balance',
                 DB::raw('COUNT(CASE WHEN polls.status = \'won\' THEN 1 END) as total_wins'),
-                DB::raw('COUNT(CASE WHEN polls.status IN (\'won\', \'lost\') THEN 1 END) as total_polls')
+                DB::raw('COUNT(CASE WHEN polls.status IN (\'won\', \'lost\') THEN 1 END) as total_polls'),
+                DB::raw('COALESCE(SUM(CASE WHEN polls.status = \'pending\' THEN polls.bid_amount ELSE 0 END), 0) as pending_coins')
             )
             ->leftJoin('polls', 'users.id', '=', 'polls.user_id')
             ->where('users.is_admin', false)
             ->where('users.is_active', true)
-            ->groupBy('users.id', 'users.name', 'users.mobile')
+            ->groupBy('users.id', 'users.name', 'users.mobile', 'users.coin_balance')
             ->orderByDesc('total_wins')
+            ->orderByRaw('(users.coin_balance + COALESCE(SUM(CASE WHEN polls.status = \'pending\' THEN polls.bid_amount ELSE 0 END), 0)) DESC')
             ->orderBy('users.name', 'asc')
             ->limit(50)
             ->get()
@@ -88,14 +90,14 @@ class LeaderboardController extends Controller
         $myWins = $user->polls()->where('status', 'won')->count();
 
         $winsRank = DB::table('users')
-            ->leftJoin('polls', function ($join) {
-                $join->on('users.id', '=', 'polls.user_id')
-                     ->where('polls.status', '=', 'won');
-            })
+            ->leftJoin('polls', 'users.id', '=', 'polls.user_id')
             ->where('users.is_admin', false)
             ->where('users.is_active', true)
-            ->groupBy('users.id', 'users.name')
-            ->havingRaw('COUNT(polls.id) > ? OR (COUNT(polls.id) = ? AND users.name < ?)', [$myWins, $myWins, $user->name])
+            ->groupBy('users.id', 'users.coin_balance', 'users.name')
+            ->havingRaw(
+                'COUNT(CASE WHEN polls.status = \'won\' THEN 1 END) > ? OR (COUNT(CASE WHEN polls.status = \'won\' THEN 1 END) = ? AND (users.coin_balance + COALESCE(SUM(CASE WHEN polls.status = \'pending\' THEN polls.bid_amount ELSE 0 END), 0)) > ?) OR (COUNT(CASE WHEN polls.status = \'won\' THEN 1 END) = ? AND (users.coin_balance + COALESCE(SUM(CASE WHEN polls.status = \'pending\' THEN polls.bid_amount ELSE 0 END), 0)) = ? AND users.name < ?)',
+                [$myWins, $myWins, $myEffective, $myWins, $myEffective, $user->name]
+            )
             ->count() + 1;
 
         return response()->json([

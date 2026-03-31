@@ -1072,6 +1072,30 @@ class _MatchDetailScreenState extends ConsumerState<MatchDetailScreen> {
                           ],
                         ]),
                       )
+                    else if (match.isLive && activePoll != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: IPLColors.accent.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: IPLColors.accent.withOpacity(0.2)),
+                        ),
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.sports_cricket, color: IPLColors.accent, size: 28),
+                          const SizedBox(height: 6),
+                          const Text('Match In Progress',
+                              style: TextStyle(color: IPLColors.accent, fontSize: 15,
+                                  fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          const Text('Results will be declared after the match ends.',
+                              style: TextStyle(color: IPLColors.textMuted, fontSize: 11)),
+                          const SizedBox(height: 8),
+                          Text('Your pick: ${activePoll.selectedTeam}  ·  ${activePoll.bidAmount} coins',
+                              style: const TextStyle(color: IPLColors.textSecondary, fontSize: 12,
+                                  fontWeight: FontWeight.w600)),
+                        ]),
+                      )
                     else if (match.isLocked && activePoll != null)
                       _ResultCard(poll: activePoll, match: match)
                     else if (match.isCancelled)
