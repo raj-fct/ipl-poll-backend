@@ -41,8 +41,15 @@ class VerifyMatchResults extends Command
         $this->info(count($espnMatches) . " matches fetched from ESPN for IPL {$year}.");
         $this->newLine();
 
-        // Get our pending matches for this season
-        $query = IplMatch::whereIn('status', ['upcoming', 'live']);
+        // Get pending matches: upcoming/live, plus any "completed but unsettled"
+        // matches (e.g. tied → Super Over winner not detected on first pass, or
+        // a transient ESPN API failure). This makes the verifier self-healing.
+        $query = IplMatch::where(function ($q) {
+            $q->whereIn('status', ['upcoming', 'live'])
+              ->orWhere(function ($q2) {
+                  $q2->where('status', 'completed')->whereNull('winning_team');
+              });
+        });
 
         // Filter by season if we have one
         $season = Season::where('year', $year)->first();
