@@ -610,7 +610,9 @@ class MatchCard extends StatelessWidget {
                       status: match.userPoll!.status,
                       selectedTeam: match.userPoll!.selectedTeam,
                       isWon: match.userPoll!.isWon,
+                      isLost: match.userPoll!.isLost,
                       coinsEarned: match.userPoll!.coinsEarned,
+                      bidAmount: match.userPoll!.bidAmount,
                     )
                   else if (match.isUpcoming)
                     Container(
@@ -682,10 +684,13 @@ class _PollChip extends StatelessWidget {
   final String status;
   final String selectedTeam;
   final bool isWon;
+  final bool isLost;
   final int coinsEarned;
+  final int bidAmount;
   const _PollChip({
     required this.status, required this.selectedTeam,
     required this.isWon, required this.coinsEarned,
+    this.isLost = false, this.bidAmount = 0,
   });
 
   @override
@@ -710,6 +715,13 @@ class _PollChip extends StatelessWidget {
           const CoinIcon(size: 10),
           const SizedBox(width: 1),
           Text('+$coinsEarned', style: const TextStyle(color: Colors.greenAccent,
+              fontSize: 10, fontWeight: FontWeight.w700)),
+        ],
+        if (isLost) ...[
+          const SizedBox(width: 3),
+          const CoinIcon(size: 10),
+          const SizedBox(width: 1),
+          Text('-$bidAmount', style: const TextStyle(color: IPLColors.red,
               fontSize: 10, fontWeight: FontWeight.w700)),
         ],
       ]),
@@ -1880,6 +1892,16 @@ class _ResultCard extends StatelessWidget {
                     fontSize: 22, fontWeight: FontWeight.w800)),
           ]),
         ],
+        if (poll.isLost) ...[
+          const SizedBox(height: 10),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const CoinIcon(size: 20),
+            const SizedBox(width: 4),
+            Text('-${poll.bidAmount}',
+                style: const TextStyle(color: IPLColors.red,
+                    fontSize: 22, fontWeight: FontWeight.w800)),
+          ]),
+        ],
       ]),
     );
   }
@@ -2059,6 +2081,16 @@ class _PollTile extends StatelessWidget {
               const SizedBox(width: 2),
               Text('+${poll.coinsEarned}',
                   style: const TextStyle(color: Colors.greenAccent,
+                      fontWeight: FontWeight.w700, fontSize: 13)),
+            ]),
+          ],
+          if (poll.isLost) ...[
+            const SizedBox(height: 6),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              const CoinIcon(size: 12),
+              const SizedBox(width: 2),
+              Text('-${poll.bidAmount}',
+                  style: const TextStyle(color: IPLColors.red,
                       fontWeight: FontWeight.w700, fontSize: 13)),
             ]),
           ],
@@ -3123,6 +3155,11 @@ class _BiddingTile extends StatelessWidget {
                 if (isWon && coinsEarned > 0) ...[
                   const SizedBox(width: 6),
                   Text('+$coinsEarned', style: const TextStyle(color: Colors.greenAccent,
+                      fontSize: 11, fontWeight: FontWeight.w700)),
+                ],
+                if (isLost) ...[
+                  const SizedBox(width: 6),
+                  Text('-$bidAmount', style: const TextStyle(color: IPLColors.red,
                       fontSize: 11, fontWeight: FontWeight.w700)),
                 ],
               ]),

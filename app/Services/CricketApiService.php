@@ -185,11 +185,17 @@ class CricketApiService
         // Determine winner
         $winningTeam = null;
         if ($status === 'completed') {
-            if ($comp1['winner'] === 'true' || $comp1['winner'] === true) {
+            if (($comp1['winner'] ?? null) === 'true' || ($comp1['winner'] ?? null) === true) {
                 $winningTeam = $team1['abbreviation'];
-            } elseif ($comp2['winner'] === 'true' || $comp2['winner'] === true) {
+            } elseif (($comp2['winner'] ?? null) === 'true' || ($comp2['winner'] ?? null) === true) {
                 $winningTeam = $team2['abbreviation'];
             }
+        }
+
+        // Fallback: Super Over / tied match — ESPN doesn't always set the winner flag
+        $summaryText = $event['status']['summary'] ?? $statusType['detail'] ?? '';
+        if ($status === 'completed' && !$winningTeam && $summaryText) {
+            $winningTeam = $this->resolveSuperOverWinner($summaryText, $team1, $team2);
         }
 
         // Parse date
@@ -268,6 +274,12 @@ class CricketApiService
             }
         }
 
+        // Fallback: Super Over / tied match — winner is in the summary text only
+        $summaryText = $statusType['shortDetail'] ?? $statusType['detail'] ?? '';
+        if ($status === 'completed' && !$winningTeam && $summaryText) {
+            $winningTeam = $this->resolveSuperOverWinner($summaryText, $team1, $team2);
+        }
+
         $desc = $competition['description'] ?? '';
         $matchNumber = 0;
         if (preg_match('/^(\d+)/', $desc, $m)) {
@@ -299,6 +311,58 @@ class CricketApiService
             'toss_decision'  => $toss['toss_decision'] ?? null,
             'summary'        => $statusType['shortDetail'] ?? null,
         ];
+    }
+
+    /**
+     * Extract Super Over / tie-breaker winner from summary text.
+     * Handles patterns like:
+     *   "Match tied (KKR won the super over)"
+     *   "Match tied (Kolkata Knight Riders won the Super Over)"
+     * Returns the abbreviation of team1 or team2, or null if not resolvable.
+     */
+    protected function resolveSuperOverWinner(string $summary, array $team1, array $team2): ?string
+    {
+        // Only act on summaries that look like a tie + super-over result
+        if (!preg_match('/tied/i', $summary) && !preg_match('/super\s*over/i', $summary)) {
+            return null;
+        }
+
+        // Capture the winning side: "(<team> won the super over)" or "<team> won the Super Over"
+        if (!preg_match('/([A-Za-z .]+?)\s+won\s+the\s+super\s*over/i', $summary, $m)) {
+            return null;
+        }
+
+        $candidate = strtolower(trim($m[1]));
+        if ($candidate === '') {
+            return null;
+        }
+
+        $matchTeam = function (array $team) use ($candidate): bool {
+            $abbr = strtolower((string) ($team['abbreviation'] ?? ''));
+            $name = strtolower((string) ($team['displayName'] ?? $team['name'] ?? ''));
+            $shortName = strtolower((string) ($team['shortDisplayName'] ?? ''));
+
+            if ($abbr && $abbr === $candidate) return true;
+            if ($name && ($name === $candidate || str_contains($name, $candidate) || str_contains($candidate, $name))) return true;
+            if ($shortName && ($shortName === $candidate || str_contains($candidate, $shortName))) return true;
+
+            // Last resort: any sufficiently long word from the team name appears in the candidate
+            foreach (explode(' ', $name) as $word) {
+                if (strlen($word) > 3 && str_contains($candidate, $word)) return true;
+            }
+            return false;
+        };
+
+        if ($matchTeam($team1)) return $team1['abbreviation'] ?? null;
+        if ($matchTeam($team2)) return $team2['abbreviation'] ?? null;
+
+        Log::warning("Super Over winner '{$candidate}' could not be matched to either team", [
+            'team1' => $team1['abbreviation'] ?? null,
+            'team2' => $team2['abbreviation'] ?? null,
+            'summary' => $summary,
+        ]);
+
+        return null;
     }
 
     /**

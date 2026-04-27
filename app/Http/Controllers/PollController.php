@@ -178,11 +178,11 @@ class PollController extends Controller
             ->polls()
             ->with('match')
             ->latest()
-            ->paginate(20);
+            ->get();
 
         return response()->json([
             'polls' => $polls->map(fn ($p) => $this->pollResource($p)),
-            'meta'  => ['total' => $polls->total(), 'last_page' => $polls->lastPage()],
+            'meta'  => ['total' => $polls->count(), 'last_page' => 1],
         ]);
     }
 
