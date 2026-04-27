@@ -27,16 +27,19 @@ class ProcessMatchResult implements ShouldQueue
     {
         $match = IplMatch::with('polls.user')->findOrFail($this->matchId);
 
-        if ($match->status === 'completed') {
-            Log::warning("ProcessMatchResult: Match #{$this->matchId} already completed. Skipping.");
-            return;
-        }
-
         Log::info("Settling Match #{$match->match_number}. Winner: {$this->winningTeam}");
 
-        $stats = ['winners' => 0, 'losers' => 0, 'coins_distributed' => 0, 'errors' => 0];
+        $stats = ['winners' => 0, 'losers' => 0, 'skipped' => 0, 'coins_distributed' => 0, 'errors' => 0];
 
         foreach ($match->polls as $poll) {
+            // Per-poll idempotency: only settle polls that are still pending.
+            // This makes the job safe to re-run after a partial failure or a
+            // late winner update (e.g. tied match resolved by Super Over).
+            if ($poll->status !== 'pending') {
+                $stats['skipped']++;
+                continue;
+            }
+
             try {
                 DB::transaction(function () use ($poll, $match, &$stats) {
                     if ($poll->isWinner($this->winningTeam)) {
